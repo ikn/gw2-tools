@@ -1,0 +1,16 @@
+gw2-tools 0.0.0-next.
+
+A collection of small Guild Wars 2 tools which run in Unix-like environments.
+
+http://ikn.org.uk/gw2-tools
+
+    LICENSE
+
+Distributed under the terms of the BSD 3-Clause license.; if this was not
+included, you can find it here:
+    https://opensource.org/licenses/BSD-3-Clause
+
+    INSTALLATION
+
+Run `make install`.  The usual `DESTDIR`, etc. arguments to `make` are
+supported.

@@ -1,0 +1,149 @@
+#! /usr/bin/env bash
+
+shopt -s nullglob
+
+GW2_DPSREPORT_URL="${GW2_DPSREPORT_URL:-https://dps.report}"
+# where the day boundary falls, as %H%M%S/%H:%M:%S
+DAY_START_NUM=050000
+DAY_START_TIME=05:00:00
+# min bytes for file to be counted as an attempt (2MB/300kB)
+ATTEMPTS_THRESHOLD_RAW=2000000
+ATTEMPTS_THRESHOLD_ZIP=300000
+
+[ "$#" -lt 2 ] && {
+    echo >&2 "usage: gw2-dpsreport LOGS_PATH DAY"
+    echo >&2 "DAY: eg. 'today', 'last wednesday', '2001-02-03'"
+    exit 2
+}
+LOGS_PATH="$1"
+[ -d "$LOGS_PATH" ] || {
+    echo >&2 "error: not a directory: $LOGS_PATH"
+    exit 2
+}
+DAY="$2"
+
+parse_boss_name () {
+    local f="$1"
+    echo "$(basename "$(dirname "$f")")"
+}
+
+# read and lines: FILE_PATH
+filter_logs_time () {
+    local date
+    date="$(date --date="$DAY" +%Y%m%d-%H%M%S)" || {
+        echo >&2 "error: invalid day: $DAY"
+        return 2
+    }
+    local day="${date%-*}"
+    local time="${date#*-}"
+    [ "$time" -lt "$DAY_START_NUM" ] &&
+        [ "$time" != 000000 ] &&
+        day="$((day - 1))"
+    local start_unixtime="$(date --date="$day $DAY_START_TIME" +%s)"
+    local end_unixtime="$(date --date="$((day + 1)) $DAY_START_TIME" +%s)"
+
+    local f
+    while read -r f; do
+        local name="$(basename "$f")"
+        local file_date="${name%%.*}"
+        local file_time="${file_date#*-}"
+        file_date="${file_date%-*} ${file_time:0:2}:${file_time:2:2}:${file_time:4:2}"
+        local file_unixtime="$(date --date="$file_date" +%s)"
+        [ "$file_unixtime" -ge "$start_unixtime" ] &&
+            [ "$file_unixtime" -lt "$end_unixtime" ] &&
+            echo "$f"
+    done
+}
+
+# read lines: FILE_PATH
+# write lines: NUM_BOSS_ATTEMPTS FILE_PATH
+filter_logs_grouped () {
+    local prev_boss_name=
+    local num_attempts=0
+    local prev_f
+    local f
+
+    while read -r f; do
+        local boss_name="$(parse_boss_name "$f")"
+        if [ "$boss_name" = "$prev_boss_name" ]; then
+            num_attempts="$((num_attempts + 1))"
+        else
+            local date="$(basename "$prev_f")"
+            date="${date/-/}"
+            date="${date%.*}"
+            [ "$num_attempts" != 0 ] &&
+                echo "$date $num_attempts $prev_f"
+            prev_boss_name="$boss_name"
+            num_attempts=1
+        fi
+        prev_f="$f"
+    done < <(sort) |
+        sort -n |
+        while read -r date num_attempts f; do
+            echo "$num_attempts" "$f"
+        done
+
+    [ "$num_attempts" != 0 ] && \
+        echo "$num_attempts $prev_f"
+}
+
+upload_log () {
+    local file="$1"
+    local url="$GW2_DPSREPORT_URL"/uploadContent
+    local res
+    res="$(
+        curl --progress-bar "$url" -F file=@"$file" -F json=1
+    )" || return 1
+
+    local err
+    err="$(jshon -e error <<<"$res")"
+    if [ "$?" != 0 ] || [ "$err" != null ]; then
+        echo >&2 "error: $file: ${err:-unknown}"
+        return 1
+    fi
+
+    local link
+    link="$(jshon -e permalink -u <<<"$res")" || {
+        echo >&2 "error: $file: unexpected HTTP response: $res"
+        return 1
+    }
+    echo "$link"
+}
+
+# output lines are $encounter $url (url empty if failed)
+# read lines: NUM_BOSS_ATTEMPTS FILE_PATH
+# write lines: NUM_BOSS_ATTEMPTS/BOSS_NAME/[URL]
+upload_logs () {
+    local num_attempts
+    local f
+    while read -r num_attempts f; do
+        echo "$num_attempts/$(parse_boss_name "$f")/$(upload_log "$f")"
+    done
+}
+
+buffer_input () {
+    local input="$(cat)"
+    echo >&2
+    echo -n "$input"
+}
+
+# read lines: NUM_BOSS_ATTEMPTS/BOSS_NAME/[URL]
+display_results () {
+    local line
+    while read -r line; do
+        local num_attempts="${line%%/*}"; line="${line#*/}"
+        local boss_name="${line%%/*}"
+        local url="${line#*/}"
+        echo "$boss_name ($num_attempts attempts): ${url:-[upload failed]}"
+    done
+}
+
+for f in "$LOGS_PATH"/*/*.evtc{,.zip}; do echo "$f"; done |
+    filter_logs_time |
+    filter_logs_grouped |
+    upload_logs |
+    buffer_input |
+    display_results
+for c in "${PIPESTATUS[@]}"; do
+    [ "$c" != 0 ] && exit "$c"
+done
