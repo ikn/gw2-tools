@@ -37,3 +37,4 @@ Jshon: http://kmkeen.com/jshon/
 - proper option handling / error checking / logging
 - option to change the day start/end time
 - option to adjust small file thresholds
+- parallel uploading

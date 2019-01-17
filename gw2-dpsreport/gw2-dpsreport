@@ -22,9 +22,16 @@ LOGS_PATH="$1"
 }
 DAY="$2"
 
-parse_boss_name () {
+parse_path_boss_name () {
     local f="$1"
     echo "$(basename "$(dirname "$f")")"
+}
+
+parse_path_date () {
+    local f="$1"
+    local date="$(basename "$f")"
+    date="${date/-/}"
+    echo "${date%.*}"
 }
 
 # read and lines: FILE_PATH
@@ -63,28 +70,26 @@ filter_logs_grouped () {
     local prev_f
     local f
 
-    while read -r f; do
-        local boss_name="$(parse_boss_name "$f")"
-        if [ "$boss_name" = "$prev_boss_name" ]; then
-            num_attempts="$((num_attempts + 1))"
-        else
-            local date="$(basename "$prev_f")"
-            date="${date/-/}"
-            date="${date%.*}"
-            [ "$num_attempts" != 0 ] &&
-                echo "$date $num_attempts $prev_f"
-            prev_boss_name="$boss_name"
-            num_attempts=1
-        fi
-        prev_f="$f"
-    done < <(sort) |
+    {
+        while read -r f; do
+            local boss_name="$(parse_path_boss_name "$f")"
+            if [ "$boss_name" = "$prev_boss_name" ]; then
+                num_attempts="$((num_attempts + 1))"
+            else
+                [ "$num_attempts" != 0 ] &&
+                    echo "$(parse_path_date "$prev_f") $num_attempts $prev_f"
+                prev_boss_name="$boss_name"
+                num_attempts=1
+            fi
+            prev_f="$f"
+        done
+        [ "$num_attempts" != 0 ] &&
+            echo "$(parse_path_date "$prev_f") $num_attempts $prev_f"
+    } < <(sort) |
         sort -n |
         while read -r date num_attempts f; do
             echo "$num_attempts" "$f"
         done
-
-    [ "$num_attempts" != 0 ] && \
-        echo "$num_attempts $prev_f"
 }
 
 upload_log () {
@@ -117,14 +122,14 @@ upload_logs () {
     local num_attempts
     local f
     while read -r num_attempts f; do
-        echo "$num_attempts/$(parse_boss_name "$f")/$(upload_log "$f")"
+        echo "$num_attempts/$(parse_path_boss_name "$f")/$(upload_log "$f")"
     done
 }
 
 buffer_input () {
     local input="$(cat)"
     echo >&2
-    echo -n "$input"
+    echo "$input"
 }
 
 # read lines: NUM_BOSS_ATTEMPTS/BOSS_NAME/[URL]
