@@ -139,7 +139,7 @@ display_results () {
         local num_attempts="${line%%/*}"; line="${line#*/}"
         local boss_name="${line%%/*}"
         local url="${line#*/}"
-        echo "$boss_name ($num_attempts attempts): ${url:-[upload failed]}"
+        echo "$boss_name (attempts: $num_attempts): ${url:-[upload failed]}"
     done
 }
 
