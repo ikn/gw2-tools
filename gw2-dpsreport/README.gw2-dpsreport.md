@@ -1,4 +1,6 @@
-gw2-dpsreport: upload a day's arcdps logs to `dps.report`.
+gw2-dpsreport 0.0-next.
+
+Upload a day's arcdps logs to `dps.report`.
 
 # Dependencies
 
