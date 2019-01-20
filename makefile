@@ -9,16 +9,23 @@ exec_prefix := $(prefix)
 bindir := $(exec_prefix)/bin
 docdir := $(datarootdir)/doc/$(project_name)
 
+PROGRAMS := $(wildcard */bin)
+
 .PHONY: all install uninstall
 
 all:
 
-install:
+install-%:
 	mkdir -p "$(DESTDIR)$(bindir)/"
-	$(INSTALL_PROGRAM) gw2-dpsreport/gw2-dpsreport "$(DESTDIR)$(bindir)/gw2-dpsreport"
+	$(INSTALL_PROGRAM) "$(patsubst install-%,%,$@)/bin" \
+	    "$(DESTDIR)$(bindir)/$(patsubst install-%,%,$@)"
+
+install: $(patsubst %/bin,install-%,$(PROGRAMS))
 	mkdir -p "$(DESTDIR)$(docdir)/"
 	$(INSTALL_DATA) README */README.* "$(DESTDIR)$(docdir)/"
 
-uninstall:
-	$(RM) "$(DESTDIR)$(bindir)/gw2-dpsreport"
+uninstall-%:
+	$(RM) "$(DESTDIR)$(bindir)/$(patsubst uninstall-%,%,$@)"
+
+uninstall: $(patsubst %/bin,uninstall-%,$(PROGRAMS))
 	$(RM) -r "$(DESTDIR)$(docdir)/"
