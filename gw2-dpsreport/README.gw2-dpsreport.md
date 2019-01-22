@@ -1,4 +1,4 @@
-gw2-dpsreport 0.0-next.
+gw2-dpsreport 1.0.
 
 Upload a day's arcdps logs to `dps.report`.
 
