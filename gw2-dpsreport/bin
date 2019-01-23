@@ -141,8 +141,12 @@ upload_logs () {
 # read standard input until EOF, then print it
 buffer_input () {
     local input="$(cat)"
-    echo >&2
-    echo "$input"
+    if [ -n "$input" ]; then
+        echo >&2
+        echo "$input"
+    else
+        echo >&2 "(no logs found)"
+    fi
 }
 
 # print log upload results in a human-readable format
