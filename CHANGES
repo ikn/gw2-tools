@@ -1,4 +1,7 @@
 2:
+ * gw2-dpsreport:
+    * improve behaviour with no logs
+    * exclude very small logs
 
 1:
  * add gw2-dpsreport

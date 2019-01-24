@@ -39,6 +39,7 @@ parse_path_date () {
 
 # filter log files to those that were recorded on the day specified in $DAY
 # read lines: FILE_PATH
+# write lines: FILE_PATH
 filter_logs_time () {
     local date
     date="$(date --date="$DAY" +%Y%m%d-%H%M%S)" || {
@@ -67,6 +68,29 @@ filter_logs_time () {
         [ "$file_unixtime" -ge "$start_unixtime" ] &&
             [ "$file_unixtime" -lt "$end_unixtime" ] &&
             echo "$f"
+    done
+}
+
+# filter log files to those above the small-file threshold
+# read lines: FILE_PATH
+# write lines: FILE_PATH
+filter_logs_size () {
+    local f
+    while read -r f; do
+        local size="$(stat --format=%s "$f")"
+        local ext="${f##*.}"
+        local limit
+        if [ "$ext" = evtc ]; then
+            limit="$ATTEMPTS_THRESHOLD_RAW"
+        elif [ "$ext" = zip ]; then
+            limit="$ATTEMPTS_THRESHOLD_ZIP"
+        else
+            limit=0
+        fi
+
+        if [ "$size" -ge "$limit" ]; then
+            echo "$f"
+        fi
     done
 }
 
@@ -163,6 +187,7 @@ display_results () {
 
 for f in "$LOGS_PATH"/*/*.evtc{,.zip}; do echo "$f"; done |
     filter_logs_time |
+    filter_logs_size |
     filter_logs_grouped |
     upload_logs |
     buffer_input |

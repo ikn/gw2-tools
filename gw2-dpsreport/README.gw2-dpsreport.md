@@ -38,6 +38,8 @@ Jshon: http://kmkeen.com/jshon/
   exposes this information)
 - proper option handling / error checking / logging
 - option to change the day start/end time
-- option to adjust small file thresholds
+- option to adjust small-file thresholds
 - option to copy the result to the clipboard
 - parallel uploading
+- instead of small-file thresholds, parse the log and use an encounter-duration
+  threshold
