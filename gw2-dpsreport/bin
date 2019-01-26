@@ -2,7 +2,8 @@
 
 shopt -s nullglob
 
-GW2_DPSREPORT_URL="${GW2_DPSREPORT_URL:-https://dps.report}"
+LOGS_PATH="$GW2_DPSREPORT_LOGS_PATH"
+URL="${GW2_DPSREPORT_URL:-https://dps.report}"
 
 # where the day boundary falls, as %H%M%S/%H:%M:%S
 DAY_START_NUM=050000
@@ -11,17 +12,21 @@ DAY_START_TIME=05:00:00
 ATTEMPTS_THRESHOLD_RAW=2000000
 ATTEMPTS_THRESHOLD_ZIP=300000
 
-[ "$#" -lt 2 ] && {
-    echo >&2 "usage: gw2-dpsreport LOGS_PATH DAY"
-    echo >&2 "DAY: eg. 'today', 'last wednesday', '2001-02-03'"
+DAY="$1"
+
+[ -z "$LOGS_PATH" ] && {
+    echo >&2 "error: environment variable not set: GW2_DPSREPORT_LOGS_PATH"
     exit 2
 }
-LOGS_PATH="$1"
 [ -d "$LOGS_PATH" ] || {
     echo >&2 "error: not a directory: $LOGS_PATH"
     exit 2
 }
-DAY="$2"
+[ "$#" -ne 1 ] && {
+    echo >&2 "usage: gw2-dpsreport DAY"
+    echo >&2 "DAY: eg. 'today', 'last wednesday', '2001-02-03'"
+    exit 2
+}
 
 # given log file path, print boss name
 parse_path_boss_name () {
@@ -130,7 +135,7 @@ filter_logs_grouped () {
 # upload log file at the given path, and print the URL if it succeeded
 upload_log () {
     local file="$1"
-    local url="$GW2_DPSREPORT_URL"/uploadContent
+    local url="$URL"/uploadContent
     local res
     res="$(
         curl --progress-bar "$url" -F file=@"$file" -F json=1

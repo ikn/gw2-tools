@@ -1,5 +1,6 @@
 2:
  * gw2-dpsreport:
+    * logs path is now set using an environment variable
     * improve behaviour with no logs
     * exclude very small logs
 

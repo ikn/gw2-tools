@@ -10,14 +10,14 @@ Jshon: http://kmkeen.com/jshon/
 
 # Usage
 
-`gw2-dps-report LOGS_PATH DAY`
+`gw2-dps-report DAY`
 
-- `LOGS_PATH`: directory containing the encounter directories
 - `DAY`: the day to upload logs for, as accepted by `date`, (eg. 'today',
   'last wednesday', '2001-02-03')
 
 ## Environment variables
 
+- `LOGS_PATH` (required): directory containing the encounter directories
 - `GW2_DPSREPORT_URL`: the base URL to upload logs to (default:
   'https://dps.report')
 
