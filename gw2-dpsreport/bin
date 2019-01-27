@@ -27,6 +27,10 @@ DAY="$1"
     echo >&2 "DAY: eg. 'today', 'last wednesday', '2001-02-03'"
     exit 2
 }
+date &> /dev/null --date="$DAY" "+%Y%m%d %H:%M:%S" || {
+    echo >&2 "error: invalid day: $DAY"
+    exit 2
+}
 
 # given log file path, print boss name
 parse_path_boss_name () {
@@ -46,30 +50,34 @@ parse_path_date () {
 # read lines: FILE_PATH
 # write lines: FILE_PATH
 filter_logs_time () {
-    local date
-    date="$(date --date="$DAY" +%Y%m%d-%H%M%S)" || {
-        echo >&2 "error: invalid day: $DAY"
-        return 2
-    }
-    local day="${date%-*}" # %Y%m%d
-    local time="${date#*-}" # %H%M%S
+    local time_num="$(date --date="$DAY" +%H%M%S)"
+    local date_unixtime="$(date --date="$DAY" +%s)"
+    local day="$(date --date="$DAY" +%Y%m%d)"
+
     # move back 1 day if time falls before the threshold
     # however, if time is midnight exactly, it's very likely that the user
     # specified a date without a time, in which case we don't want to move back
-    [ "$time" -lt "$DAY_START_NUM" ] &&
-        [ "$time" != 000000 ] &&
-        day="$((day - 1))"
-    local start_unixtime="$(date --date="$day $DAY_START_TIME" +%s)"
-    local end_unixtime="$(date --date="$((day + 1)) $DAY_START_TIME" +%s)"
+    local start_unixtime
+    local end_unixtime
+    if [ "$time_num" -lt "$DAY_START_NUM" ] && [ "$time_num" != 000000 ]; then
+        local day_start="$(
+            date --date="@$((date_unixtime - 24*60*60))" "+%Y%m%d")"
+        start_unixtime="$(date --date="$day_start $DAY_START_TIME" +%s)"
+        end_unixtime="$(date --date="$day $DAY_START_TIME" +%s)"
+    else
+        local day_end="$(
+            date --date="@$((date_unixtime + 24*60*60))" "+%Y%m%d")"
+        start_unixtime="$(date --date="$day $DAY_START_TIME" +%s)"
+        end_unixtime="$(date --date="$day_end $DAY_START_TIME" +%s)"
+    fi
 
     local f
     while read -r f; do
         local name="$(basename "$f")"
-        local file_date="${name%%.*}" # %Y%m%d-%H%M%S
-        local file_time="${file_date#*-}" # %H%M%S
-        # %Y%m%d %H:%M:%S
-        local parseable_file_date="${file_date%-*} ${file_time:0:2}:${file_time:2:2}:${file_time:4:2}"
-        local file_unixtime="$(date --date="$parseable_file_date" +%s)"
+        local file_date_raw="${name%%.*}" # %Y%m%d-%H%M%S
+        local file_time="${file_date_raw#*-}" # %H%M%S
+        local file_date="${file_date_raw%-*} ${file_time:0:2}:${file_time:2:2}:${file_time:4:2}"
+        local file_unixtime="$(date --date="$file_date" +%s)"
         [ "$file_unixtime" -ge "$start_unixtime" ] &&
             [ "$file_unixtime" -lt "$end_unixtime" ] &&
             echo "$f"

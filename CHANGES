@@ -3,6 +3,7 @@
     * logs path is now set using an environment variable
     * improve behaviour with no logs
     * exclude very small logs
+    * bug: fails on the first or last day of a month
 
 1:
  * add gw2-dpsreport
