@@ -7,6 +7,8 @@ Upload a day's arcdps logs to `dps.report`.
 Bash (>= 3): https://www.gnu.org/software/bash/
 curl: https://curl.haxx.se/
 Jshon: http://kmkeen.com/jshon/
+Zip: http://infozip.sourceforge.net/Zip.html
+ - optional: compress files before upload
 
 # Usage
 
@@ -33,7 +35,6 @@ Jshon: http://kmkeen.com/jshon/
 
 # Wish list
 
-- compress uncompressed files before upload
 - determine and display whether the last attempt was a success (if the API
   exposes this information)
 - proper option handling / error checking / logging
@@ -43,3 +44,4 @@ Jshon: http://kmkeen.com/jshon/
 - parallel uploading
 - instead of small-file thresholds, parse the log and use an encounter-duration
   threshold
+- option to change the temp dir used for compression
