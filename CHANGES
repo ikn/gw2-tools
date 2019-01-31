@@ -2,6 +2,7 @@
  * gw2-dpsreport:
     * logs path is now set using an environment variable
     * compress uncompressed logs before uploading
+    * display whether the encounter attempt succeeded
     * improve behaviour with no logs
     * exclude very small logs
     * bug: fails on the first or last day of a month

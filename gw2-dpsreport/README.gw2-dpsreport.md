@@ -35,8 +35,6 @@ Zip: http://infozip.sourceforge.net/Zip.html
 
 # Wish list
 
-- determine and display whether the last attempt was a success (if the API
-  exposes this information)
 - proper option handling / error checking / logging
 - option to change the day start/end time
 - option to adjust small-file thresholds
