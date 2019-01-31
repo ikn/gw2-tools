@@ -171,18 +171,26 @@ compress_log () {
 
 # upload log file at the given path, and print the URL if it succeeded
 upload_log () {
-    local file="$1"
+    local orig_file="$1"
     local tmp_file
-    # curl uses filename as multipart filename by default, and the server uses
-    # the extension to determine file type
-    tmp_file="$(mktemp -p "$TEMP_DIR" -q --suffix=.zip)" &&
-        file="$(compress_log "$file" "$tmp_file")"
+    local file
+    # preserve the correct extension to send it to the server, which uses it to
+    # determine file type
+    if tmp_file="$(mktemp -p "$TEMP_DIR" -q --suffix=.zip)"; then
+        file="$(compress_log "$orig_file" "$tmp_file")"
+    else
+        file="$orig_file"
+    fi
+    # preserve the original filename in the upload - the server puts it in the
+    # report URL
+    local orig_filename="$(basename "$orig_file")"
+    local upload_name="${orig_filename%.*}.${file##*.}"
 
     local url="$URL"/uploadContent
     local res
-    res="$(
-        curl --progress-bar "$url" -F file=@"$file" -F json=1
-    )"
+    res="$(curl --progress-bar "$url" \
+        -F file="@$file;filename=$upload_name" \
+        -F json=1)"
     local err_code="$?"
     [ -n "$tmp_file" ] && rm -f "$tmp_file"
     [ "$err_code" -ne 0 ] && return 1
