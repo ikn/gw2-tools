@@ -1,3 +1,5 @@
+3:
+
 2:
  * gw2-dpsreport:
     * logs path is now set using an environment variable
