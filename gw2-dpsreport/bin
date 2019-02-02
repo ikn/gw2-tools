@@ -8,6 +8,8 @@ URL="${GW2_DPSREPORT_URL:-https://dps.report}"
 # where the day boundary falls, as %H%M%S/%H:%M:%S
 DAY_START_NUM=050000
 DAY_START_TIME=05:00:00
+# if DAY has this value, the program should upload only the most recent log
+DAY_VALUE_LATEST_ONLY=latest
 # min bytes for file to be counted as an attempt (2MB/300kB)
 ATTEMPTS_THRESHOLD_RAW=2000000
 ATTEMPTS_THRESHOLD_ZIP=300000
@@ -28,10 +30,12 @@ DAY="$1"
     echo >&2 "DAY: eg. 'today', 'last wednesday', '2001-02-03'"
     exit 2
 }
-date &> /dev/null --date="$DAY" "+%Y%m%d %H:%M:%S" || {
-    echo >&2 "error: invalid day: $DAY"
-    exit 2
-}
+[ "$DAY" = "$DAY_VALUE_LATEST_ONLY" ] ||
+    date &> /dev/null --date="$DAY" "+%Y%m%d %H:%M:%S" ||
+    {
+        echo >&2 "error: invalid day: $DAY"
+        exit 2
+    }
 type -p zip > /dev/null || {
     echo >&2 -n "warning: zip not found; "
     echo >&2 "uncompressed logs will be uploaded without compression"
@@ -117,7 +121,8 @@ filter_logs_size () {
     done
 }
 
-# filter log files to the last attempt at each encounter, and count attempts
+# filter log files to the last attempt at each encounter, count attempts, and
+# sort by date
 # read lines: FILE_PATH
 # write lines: NUM_BOSS_ATTEMPTS FILE_PATH
 filter_logs_grouped () {
@@ -265,9 +270,18 @@ display_results () {
 
 trap cleanup TERM INT EXIT
 for f in "$LOGS_PATH"/*/*.evtc{,.zip}; do echo "$f"; done |
-    filter_logs_time |
+    if [ "$DAY" = "$DAY_VALUE_LATEST_ONLY" ]; then
+        cat
+    else
+        filter_logs_time
+    fi |
     filter_logs_size |
     filter_logs_grouped |
+    if [ "$DAY" = "$DAY_VALUE_LATEST_ONLY" ]; then
+        tail -n1
+    else
+        cat
+    fi |
     upload_logs |
     buffer_input |
     display_results

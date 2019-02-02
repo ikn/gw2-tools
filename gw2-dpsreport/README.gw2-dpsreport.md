@@ -1,4 +1,4 @@
-gw2-dpsreport 1.1.
+gw2-dpsreport 1.1-next.
 
 Upload a day's arcdps logs to `dps.report`.
 
@@ -15,7 +15,8 @@ Zip: http://infozip.sourceforge.net/Zip.html
 `gw2-dps-report DAY`
 
 - `DAY`: the day to upload logs for, as accepted by `date`, (eg. 'today',
-  'last wednesday', '2001-02-03')
+  'last wednesday', '2001-02-03'); or the special value 'latest', which means
+  only upload the single most recent log, from any day
 
 ## Environment variables
 
