@@ -1,5 +1,6 @@
 3:
  * gw2-dpsreport:
+    * parallel uploads
     * add value 'latest' for `DAY`
 
 2:

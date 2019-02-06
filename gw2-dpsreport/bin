@@ -1,9 +1,12 @@
 #! /usr/bin/env bash
 
+source `which env_parallel.bash`
+env_parallel --session
 shopt -s nullglob
 
 LOGS_PATH="$GW2_DPSREPORT_LOGS_PATH"
 URL="${GW2_DPSREPORT_URL:-https://dps.report}"
+UPLOAD_PARALLEL_LIMIT="${GW2_DPSREPORT_UPLOAD_PARALLEL_LIMIT:-5}"
 
 # where the day boundary falls, as %H%M%S/%H:%M:%S
 DAY_START_NUM=050000
@@ -23,6 +26,11 @@ DAY="$1"
 }
 [ -d "$LOGS_PATH" ] || {
     echo >&2 "error: not a directory: $LOGS_PATH"
+    exit 2
+}
+[[ "$UPLOAD_PARALLEL_LIMIT" =~ ^[0-9]+$ ]] || {
+    echo >&2 -n "error: GW2_DPSREPORT_UPLOAD_PARALLEL_LIMIT: not a number:"
+    echo >&2 "$UPLOAD_PARALLEL_LIMIT"
     exit 2
 }
 [ "$#" -ne 1 ] && {
@@ -175,8 +183,14 @@ compress_log () {
 }
 
 # upload log file at the given path
+#
 # write line: RESULT URL
 # RESULT: adjective describing whether the encounter attempt succeeded
+# This also written also on error, in which case RESULT is unknown and URL is
+# the error message.
+#
+# Standard error output comes from `curl`, with carriage returns replaced with
+# newlines to allow for line buffering of progress updates
 upload_log () {
     local orig_file="$1"
     local tmp_file
@@ -195,7 +209,7 @@ upload_log () {
 
     local url="$URL"/uploadContent
     local res
-    res="$(curl --progress-bar "$url" \
+    res="$(curl 2> >(stdbuf -oL tr '\r' '\n' >&2) "$url" \
         -F file="@$file;filename=$upload_name" \
         -F json=1)"
     local err_code="$?"
@@ -205,7 +219,7 @@ upload_log () {
     local err
     err="$(jshon -Q -e error <<<"$res")"
     if [ "$?" != 0 ] || [ "$err" != null ]; then
-        echo >&2 "error: $file: ${err:-unknown}"
+        echo unknown "${err:-$res}"
         return 1
     fi
 
@@ -221,26 +235,78 @@ upload_log () {
 
     local link
     link="$(jshon -Q -e permalink -u <<<"$res")" || {
-        echo >&2 "error: $file: unexpected HTTP response: $res"
+        echo unknown "unexpected HTTP response: $res"
         return 1
     }
 
     echo "$result $link"
 }
 
-# upload log files; failed uploads are also printed, but without the upload URL
+# combine progress updates from multiple `curl` invocations, given the number
+# of 
+#
+# read lines: ID UPDATE
+#
+# ID: the number of the `curl` invocation that this progress update comes from
+# UPDATE: the line (ie. split by carriage returns and new lines) written to
+#         standard error by `curl`
+#
+# Writes the total progress percentage to standard output whenever an update is
+# received, intended for writing to a terminal.
+combine_upload_progress () {
+    local num_items="$1"
+    {
+        local total_progress=0 # last known sum of progress percentages
+        local items_progress=() # last known progress percentages by item ID
+        local item
+        local progress
+        local line # unused, just capture the rest of the line
+        local wrote_progress=n # track whether we ever write the progress
+        while read -r item progress line; do
+            [[ "$progress" =~ ^[0-9]+$ ]] || continue
+            local previous_item_progress="${items_progress[$item]:-0}"
+            total_progress="$((total_progress + progress - previous_item_progress))"
+            items_progress[$item]="$progress"
+            echo >&2 -ne "\r$((total_progress / num_items))%"
+            wrote_progress=y
+        done
+
+        # move the cursor to the next line if we wrote anything
+        [ "$wrote_progress" = y ] && echo >&2
+    }
+}
+
+# upload log files; failed uploads (RESULT = unknown) are printed with an error
+# message instead of the URL
 # read lines: NUM_BOSS_ATTEMPTS FILE_PATH
-# write lines: NUM_BOSS_ATTEMPTS/BOSS_NAME/RESULT/[URL]
+# write lines: NUM_BOSS_ATTEMPTS/BOSS_NAME/RESULT/(URL|ERROR)
 upload_logs () {
-    local num_attempts
-    local f
-    while read -r num_attempts f; do
-        local result
-        local url
-        read -r result url < <(upload_log "$f")
-        [ -z "$result" ] && result=unknown
-        echo "$num_attempts/$(parse_path_boss_name "$f")/$result/$url"
-    done
+    # need to read in all lines before we start, to count them for progress
+    # reporting
+    local input="$(cat)"
+    local num_logs="$(wc -l <<<"$input")"
+    if [ -n "$input" ]; then echo "$input"; fi |
+        # upload in parallel
+        # preserving the input line's attempts count by prepending
+        # generating boss name since we don't preserve the file path
+        # combining progress bars for terminal output
+        # replacing only the first space from `upload_log` with / since boss
+        # name can contain spaces
+        env_parallel --line-buffer --jobs "$UPLOAD_PARALLEL_LIMIT" -- \
+            'echo -n {= $_ =~ s/ .+// =}/$(parse_path_boss_name {= $_ =~ s/^.+? // =})/;' \
+            'upload_log {= $_ =~ s/^.+? // =}' \
+            '    2> >(stdbuf -oL sed "s/^/{#} /" >&2)' \
+            '    | sed "s: :/:"' \
+            2> >(combine_upload_progress "$num_logs" >&2) |
+        {
+            local num_attempts
+            local boss_name
+            local result
+            local url
+            while IFS=/ read -r num_attempts boss_name result url; do
+                echo "$num_attempts/$boss_name/$result/$url"
+            done
+        }
 }
 
 # read standard input until EOF, then print it
@@ -255,16 +321,20 @@ buffer_input () {
 }
 
 # print log upload results in a human-readable format
-# read lines: NUM_BOSS_ATTEMPTS/BOSS_NAME/RESULT/[URL]
+# read lines: NUM_BOSS_ATTEMPTS/BOSS_NAME/RESULT/(URL|ERROR)
 display_results () {
-    local line
-    while read -r line; do
-        local num_attempts="${line%%/*}"; line="${line#*/}"
-        local boss_name="${line%%/*}"; line="${line#*/}"
-        local result="${line%%/*}"
-        local url="${line#*/}"
+    local num_attempts
+    local boss_name
+    local result
+    local url
+    while IFS=/ read -r num_attempts boss_name result url; do
         echo -n "$boss_name (attempts: $num_attempts, $result): "
-        echo "${url:-[upload failed]}"
+        if [ "$result" = unknown ]; then
+            echo "[upload failed]"
+            echo >&2 "upload failure reason: $url"
+        else
+            echo "$url"
+        fi
     done
 }
 

@@ -9,6 +9,7 @@ curl: https://curl.haxx.se/
 Jshon: http://kmkeen.com/jshon/
 Zip: http://infozip.sourceforge.net/Zip.html
  - optional: compress files before upload
+GNU Parallel: https://www.gnu.org/software/parallel/
 
 # Usage
 
@@ -24,6 +25,8 @@ Zip: http://infozip.sourceforge.net/Zip.html
   directories
 - `GW2_DPSREPORT_URL`: the base URL to upload logs to (default:
   'https://dps.report')
+- `GW2_DPSREPORT_UPLOAD_PARALLEL_LIMIT`: maximum allowed parallel uploads (0
+  means no maximum) (default: 5)
 
 # Notes
 
@@ -37,14 +40,12 @@ Zip: http://infozip.sourceforge.net/Zip.html
 
 # Wish list
 
-- parallel uploading
 - default for `GW2_DPSREPORT_LOGS_PATH` based on `WINEPREFIX`
 - proper option handling with help and version options
 - option to copy the result to the clipboard, environment variable to choose the
   clipboard
 - better error checking and logging with verbosity option
 - environment variable to change the day start/end time
-- environment variable to change the parallel uploads limit
 - environment variable to change the temp dir used for compression
 - environment variable to adjust small-file thresholds
 - instead of small-file thresholds, parse the log and use an encounter-duration
