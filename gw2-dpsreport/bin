@@ -287,23 +287,26 @@ upload_logs () {
     local num_logs="$(wc -l <<<"$input")"
     if [ -n "$input" ]; then echo "$input"; fi |
         # upload in parallel
+        # preserving the order by prepending the sequence number
         # preserving the input line's attempts count by prepending
         # generating boss name since we don't preserve the file path
         # combining progress bars for terminal output
         # replacing only the first space from `upload_log` with / since boss
         # name can contain spaces
         env_parallel --line-buffer --jobs "$UPLOAD_PARALLEL_LIMIT" -- \
-            'echo -n {= $_ =~ s/ .+// =}/$(parse_path_boss_name {= $_ =~ s/^.+? // =})/;' \
+            'echo -n {#}/{= $_ =~ s/ .+// =}/$(parse_path_boss_name {= $_ =~ s/^.+? // =})/;' \
             'upload_log {= $_ =~ s/^.+? // =}' \
             '    2> >(stdbuf -oL sed "s/^/{#} /" >&2)' \
             '    | sed "s: :/:"' \
             2> >(combine_upload_progress "$num_logs" >&2) |
+            sort -n |
         {
+            local num
             local num_attempts
             local boss_name
             local result
             local url
-            while IFS=/ read -r num_attempts boss_name result url; do
+            while IFS=/ read -r num num_attempts boss_name result url; do
                 echo "$num_attempts/$boss_name/$result/$url"
             done
         }
