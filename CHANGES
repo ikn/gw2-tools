@@ -2,6 +2,8 @@
  * gw2-dpsreport:
     * parallel uploads
     * add value 'latest' for `DAY`
+    * support other compression formats
+    * improve performance with a large total number of log files
 
 2:
  * gw2-dpsreport:

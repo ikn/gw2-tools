@@ -7,15 +7,16 @@ shopt -s nullglob
 LOGS_PATH="$GW2_DPSREPORT_LOGS_PATH"
 URL="${GW2_DPSREPORT_URL:-https://dps.report}"
 UPLOAD_PARALLEL_LIMIT="${GW2_DPSREPORT_UPLOAD_PARALLEL_LIMIT:-5}"
+SIZE_THRESHOLD_CUSTOM="${GW2_DPSREPORT_SIZE_THRESHOLD_CUSTOM:-0}"
 
 # where the day boundary falls, as %H%M%S/%H:%M:%S
 DAY_START_NUM=050000
 DAY_START_TIME=05:00:00
 # if DAY has this value, the program should upload only the most recent log
 DAY_VALUE_LATEST_ONLY=latest
-# min bytes for file to be counted as an attempt (2MB/300kB)
-ATTEMPTS_THRESHOLD_RAW=2000000
-ATTEMPTS_THRESHOLD_ZIP=300000
+# min bytes for standard-format file to be included (2MB/300kB)
+SIZE_THRESHOLD_RAW=2000000
+SIZE_THRESHOLD_ZIP=300000
 TEMP_DIR="$(mktemp -d)"
 
 DAY="$1"
@@ -33,6 +34,11 @@ DAY="$1"
     echo >&2 "$UPLOAD_PARALLEL_LIMIT"
     exit 2
 }
+[[ "$SIZE_THRESHOLD_CUSTOM" =~ ^[0-9]+$ ]] || {
+    echo >&2 -n "error: GW2_DPSREPORT_SIZE_THRESHOLD_CUSTOM: not a number:"
+    echo >&2 "$SIZE_THRESHOLD_CUSTOM"
+    exit 2
+}
 [ "$#" -ne 1 ] && {
     echo >&2 "usage: gw2-dpsreport DAY"
     echo >&2 "DAY: eg. 'today', 'last wednesday', '2001-02-03'"
@@ -44,23 +50,25 @@ DAY="$1"
         echo >&2 "error: invalid day: $DAY"
         exit 2
     }
-type -p zip > /dev/null || {
-    echo >&2 -n "warning: zip not found; "
+type -p 7z > /dev/null || {
+    echo >&2 -n "warning: 7z not found; "
+    echo >&2 "logs compressed in formats other than Zip will be ignored; "
     echo >&2 "uncompressed logs will be uploaded without compression"
 }
 
 # given log file path, print boss name
 parse_path_boss_name () {
     local f="$1"
-    echo "$(basename "$(dirname "$f")")"
+    local dir_name="$(dirname "$f")"
+    echo "${dir_name##*/}"
 }
 
 # given log file path, print date as %Y%m%d%H%M%S
 parse_path_date () {
     local f="$1"
-    local date="$(basename "$f")"
-    date="${date/-/}"
-    echo "${date%.*}"
+    local name="${f##*/}"
+    local date="${name%.*}"
+    echo "${date/-/}"
 }
 
 # remove all created temporary files
@@ -72,6 +80,7 @@ cleanup () {
 # read lines: FILE_PATH
 # write lines: FILE_PATH
 filter_logs_time () {
+    local num_format="%Y%m%d%H%M%S"
     local time_num="$(date --date="$DAY" +%H%M%S)"
     local date_unixtime="$(date --date="$DAY" +%s)"
     local day="$(date --date="$DAY" +%Y%m%d)"
@@ -79,29 +88,27 @@ filter_logs_time () {
     # move back 1 day if time falls before the threshold
     # however, if time is midnight exactly, it's very likely that the user
     # specified a date without a time, in which case we don't want to move back
-    local start_unixtime
-    local end_unixtime
+    local start_num
+    local end_num
     if [ "$time_num" -lt "$DAY_START_NUM" ] && [ "$time_num" != 000000 ]; then
         local day_start="$(
             date --date="@$((date_unixtime - 24*60*60))" "+%Y%m%d")"
-        start_unixtime="$(date --date="$day_start $DAY_START_TIME" +%s)"
-        end_unixtime="$(date --date="$day $DAY_START_TIME" +%s)"
+        start_num="$(date --date="$day_start $DAY_START_TIME" +"$num_format")"
+        end_num="$(date --date="$day $DAY_START_TIME" +"$num_format")"
     else
         local day_end="$(
             date --date="@$((date_unixtime + 24*60*60))" "+%Y%m%d")"
-        start_unixtime="$(date --date="$day $DAY_START_TIME" +%s)"
-        end_unixtime="$(date --date="$day_end $DAY_START_TIME" +%s)"
+        start_num="$(date --date="$day $DAY_START_TIME" +"$num_format")"
+        end_num="$(date --date="$day_end $DAY_START_TIME" +"$num_format")"
     fi
 
     local f
     while read -r f; do
-        local name="$(basename "$f")"
+        local name="${f##*/}"
         local file_date_raw="${name%%.*}" # %Y%m%d-%H%M%S
-        local file_time="${file_date_raw#*-}" # %H%M%S
-        local file_date="${file_date_raw%-*} ${file_time:0:2}:${file_time:2:2}:${file_time:4:2}"
-        local file_unixtime="$(date --date="$file_date" +%s)"
-        [ "$file_unixtime" -ge "$start_unixtime" ] &&
-            [ "$file_unixtime" -lt "$end_unixtime" ] &&
+        local file_num="${file_date_raw%-*}${file_date_raw#*-}"
+        [ "$file_num" -ge "$start_num" ] &&
+            [ "$file_num" -lt "$end_num" ] &&
             echo "$f"
     done
 }
@@ -116,11 +123,11 @@ filter_logs_size () {
         local ext="${f##*.}"
         local limit
         if [ "$ext" = evtc ]; then
-            limit="$ATTEMPTS_THRESHOLD_RAW"
+            limit="$SIZE_THRESHOLD_RAW"
         elif [ "$ext" = zip ]; then
-            limit="$ATTEMPTS_THRESHOLD_ZIP"
+            limit="$SIZE_THRESHOLD_ZIP"
         else
-            limit=0
+            limit="$SIZE_THRESHOLD_CUSTOM"
         fi
 
         if [ "$size" -ge "$limit" ]; then
@@ -163,21 +170,48 @@ filter_logs_grouped () {
         done
 }
 
-# compress_log LOG_FILE TMP_FILE
+# decompress_log LOG_FILE
 #
-# compress LOG_FILE, if necessary, and write the result to TMP_FILE
-# prints the new file path, which might be LOG_FILE or TMP_FILE
-compress_log () {
+# Decompress LOG_FILE, if necessary, and write the result to a temporary file.
+# Prints the new file path, which might be LOG_FILE (also on failure).
+decompress_log () {
     local file="$1"
-    local tmp_file="$2"
     local ext="${file##*.}"
+    local tmp_file
 
-    if type -p zip > /dev/null &&
-        [ "$ext" = evtc ] &&
-        zip -q - -- "$file" > "$tmp_file"
+    if type -p 7z > /dev/null &&
+        [ "$ext" != evtc ] && [ "$ext" != zip ] &&
+        # preserve the correct extension to send it to the server, which uses it
+        # to determine file type
+        tmp_file="$(mktemp -p "$TEMP_DIR" -q --suffix=.evtc)" &&
+        7z e -y -bsp0 -bso0 -so "$file" > "$tmp_file"
     then
         echo "$tmp_file"
     else
+        [ -n "$tmp_file" ] && rm -f "$tmp_file"
+        echo "$file"
+    fi
+}
+
+# compress_log LOG_FILE
+#
+# Compress LOG_FILE, if necessary, and write the result to a temporary file.
+# Prints the new file path, which might be LOG_FILE (also on failure), and has
+# an appropriate file extension.
+compress_log () {
+    local file="$1"
+    local tmp_file
+
+    if type -p 7z > /dev/null &&
+        [ "${file##*.}" = evtc ] &&
+        # preserve the correct extension to send it to the server, which uses it
+        # to determine file type
+        tmp_file="$(mktemp -p "$TEMP_DIR" -u -q --suffix=.evtc.zip)" &&
+        7z a -y -bsp0 -bso0 -tzip "$tmp_file" "$file"
+    then
+        echo "$tmp_file"
+    else
+        [ -n "$tmp_file" ] && rm -f "$tmp_file"
         echo "$file"
     fi
 }
@@ -189,19 +223,14 @@ compress_log () {
 # This also written also on error, in which case RESULT is unknown and URL is
 # the error message.
 #
-# Standard error output comes from `curl`, with carriage returns replaced with
-# newlines to allow for line buffering of progress updates
+# Writes to file descriptor 3 with standard error output from `curl`, with
+# carriage returns replaced with newlines to allow for line buffering of
+# progress updates
 upload_log () {
     local orig_file="$1"
-    local tmp_file
-    local file
-    # preserve the correct extension to send it to the server, which uses it to
-    # determine file type
-    if tmp_file="$(mktemp -p "$TEMP_DIR" -q --suffix=.zip)"; then
-        file="$(compress_log "$orig_file" "$tmp_file")"
-    else
-        file="$orig_file"
-    fi
+    local tmp_file1="$(decompress_log "$orig_file")"
+    local tmp_file2="$(compress_log "$tmp_file1")"
+    local file="$tmp_file2"
     # preserve the original filename in the upload - the server puts it in the
     # report URL
     local orig_filename="$(basename "$orig_file")"
@@ -209,12 +238,16 @@ upload_log () {
 
     local url="$URL"/uploadContent
     local res
-    res="$(curl 2> >(stdbuf -oL tr '\r' '\n' >&2) "$url" \
+    res="$(curl 2> >(stdbuf -oL tr '\r' '\n' >&3) "$url" \
         -F file="@$file;filename=$upload_name" \
         -F json=1)"
     local err_code="$?"
-    [ -n "$tmp_file" ] && rm -f "$tmp_file"
-    [ "$err_code" -ne 0 ] && return 1
+    [ "$tmp_file1" != "$orig_file" ] && rm -f "$tmp_file1"
+    [ "$tmp_file2" != "$orig_file" ] && rm -f "$tmp_file2"
+    [ "$err_code" -ne 0 ] && {
+        echo unknown "$res"
+        return 1
+    }
 
     local err
     err="$(jshon -Q -e error <<<"$res")"
@@ -242,8 +275,8 @@ upload_log () {
     echo "$result $link"
 }
 
-# combine progress updates from multiple `curl` invocations, given the number
-# of 
+# combine progress updates from multiple `curl` invocations, given the total
+# number of invocations
 #
 # read lines: ID UPDATE
 #
@@ -262,17 +295,19 @@ combine_upload_progress () {
         local progress
         local line # unused, just capture the rest of the line
         local wrote_progress=n # track whether we ever write the progress
+
         while read -r item progress line; do
             [[ "$progress" =~ ^[0-9]+$ ]] || continue
             local previous_item_progress="${items_progress[$item]:-0}"
-            total_progress="$((total_progress + progress - previous_item_progress))"
+            total_progress="$((
+                total_progress + progress - previous_item_progress))"
             items_progress[$item]="$progress"
-            echo >&2 -ne "\r$((total_progress / num_items))%"
+            echo -ne "\r$((total_progress / num_items))%"
             wrote_progress=y
         done
 
         # move the cursor to the next line if we wrote anything
-        [ "$wrote_progress" = y ] && echo >&2
+        [ "$wrote_progress" = y ] && echo
     }
 }
 
@@ -296,9 +331,9 @@ upload_logs () {
         env_parallel --line-buffer --jobs "$UPLOAD_PARALLEL_LIMIT" -- \
             'echo -n {#}/{= $_ =~ s/ .+// =}/$(parse_path_boss_name {= $_ =~ s/^.+? // =})/;' \
             'upload_log {= $_ =~ s/^.+? // =}' \
-            '    2> >(stdbuf -oL sed "s/^/{#} /" >&2)' \
+            '    3> >(stdbuf -oL sed "s/^/{#} /" >&3)' \
             '    | sed "s: :/:"' \
-            2> >(combine_upload_progress "$num_logs" >&2) |
+            3> >(combine_upload_progress "$num_logs" >&2) |
             sort -n |
         {
             local num
@@ -330,8 +365,14 @@ display_results () {
     local boss_name
     local result
     local url
+
     while IFS=/ read -r num_attempts boss_name result url; do
-        echo -n "$boss_name (attempts: $num_attempts, $result): "
+        if [ "$DAY" = "$DAY_VALUE_LATEST_ONLY" ]; then
+            echo -n "$boss_name ($result): "
+        else
+            echo -n "$boss_name (attempts: $num_attempts, $result): "
+        fi
+
         if [ "$result" = unknown ]; then
             echo "[upload failed]"
             echo >&2 "upload failure reason: $url"
@@ -342,18 +383,12 @@ display_results () {
 }
 
 trap cleanup TERM INT EXIT
-for f in "$LOGS_PATH"/*/*.evtc{,.zip}; do echo "$f"; done |
+for f in "$LOGS_PATH"/*/*.evtc{,.*}; do echo "$f"; done |
     if [ "$DAY" = "$DAY_VALUE_LATEST_ONLY" ]; then
-        cat
+        # dummy attempt count value - ignored in `display_results`
+        tail -n1 | while read -r f; do echo 0 "$f"; done
     else
-        filter_logs_time
-    fi |
-    filter_logs_size |
-    filter_logs_grouped |
-    if [ "$DAY" = "$DAY_VALUE_LATEST_ONLY" ]; then
-        tail -n1
-    else
-        cat
+        filter_logs_time | filter_logs_size | filter_logs_grouped
     fi |
     upload_logs |
     buffer_input |
