@@ -1,0 +1,34 @@
+#! /usr/bin/env bash
+
+base_url="http://www.deltaconnected.com/arcdps/x64/"
+dll_name="d3d9.dll"
+bt_dll_name="d3d9_arcdps_buildtemplates.dll"
+set -e
+
+install_dir="$1"
+[ -z "$install_dir" ] && {
+    echo >&2 "expected first argument: Guild Wars 2 installation directory"
+    exit 2
+}
+[ -d "$install_dir" ] || {
+    echo >&2 "no such directory: $install_dir"
+    exit 2
+}
+install_dir="$install_dir/bin64"
+[ -d "$install_dir" ] || {
+    echo >&2 "no such directory: $install_dir"
+    exit 2
+}
+
+tmp="$(mktemp -d)"
+cd "$tmp"
+
+wget "$base_url/$dll_name" "$base_url/$dll_name.md5sum" \
+    "$base_url/buildtemplates/$bt_dll_name"
+# md5sum file expects files to be in directory `x64`
+mkdir x64
+cp "$dll_name" "$bt_dll_name" x64
+md5sum -c "$dll_name.md5sum" || exit 1
+install -m644 "$dll_name" "$bt_dll_name" "$install_dir"
+
+rm -rf "$tmp"

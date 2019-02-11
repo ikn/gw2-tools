@@ -1,6 +1,7 @@
 gw2-dpsreport 1.2.
 
-Upload a day's arcdps logs to `dps.report`.
+Upload a day's [arcdps](https://www.deltaconnected.com/arcdps/) logs to
+[dps.report](https://dps.report/).
 
 # Dependencies
 
