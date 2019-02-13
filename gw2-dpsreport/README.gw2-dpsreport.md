@@ -13,10 +13,9 @@ p7zip: http://p7zip.sourceforge.net/
  - optional: compress files before upload
  - optional: work with log files compressed in formats other than Zip
 
-
 # Usage
 
-`gw2-dps-report DAY`
+`gw2-dpsreport DAY`
 
 - `DAY`: the day to upload logs for, as accepted by `date`, (eg. 'today',
   'last wednesday', 'friday 3 weeks ago', '2001-02-03'); or the special value
