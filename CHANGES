@@ -1,6 +1,7 @@
 4:
  * add gw2-arcdps-install
  * gw2-dpsreport:
+    * automatically determine logs path from `WINEPREFIX`
     * bug: value 'latest' for `DAY` doesn't work at all
 
 3:

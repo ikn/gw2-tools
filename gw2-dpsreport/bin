@@ -22,8 +22,13 @@ TEMP_DIR="$(mktemp -d)"
 DAY="$1"
 
 [ -z "$LOGS_PATH" ] && {
-    echo >&2 "error: environment variable not set: GW2_DPSREPORT_LOGS_PATH"
-    exit 2
+    if [ -n "$WINEPREFIX" ]; then
+        wine_docs="$WINEPREFIX/drive_c/users/$USER/My Documents"
+        LOGS_PATH="$wine_docs/Guild Wars 2/addons/arcdps/arcdps.cbtlogs"
+    else
+        echo >&2 "error: environment variable not set: GW2_DPSREPORT_LOGS_PATH"
+        exit 2
+    fi
 }
 [ -d "$LOGS_PATH" ] || {
     echo >&2 "error: not a directory: $LOGS_PATH"

@@ -23,8 +23,9 @@ p7zip: http://p7zip.sourceforge.net/
 
 ## Environment variables
 
-- `GW2_DPSREPORT_LOGS_PATH` (required): directory containing the encounter
-  directories
+- `GW2_DPSREPORT_LOGS_PATH` or `WINEPREFIX` (required): directory containing the
+  encounter directories, or try to work out this directory from the Wine data
+  directory
 - `GW2_DPSREPORT_URL`: the base URL to upload logs to (default:
   'https://dps.report')
 - `GW2_DPSREPORT_UPLOAD_PARALLEL_LIMIT`: maximum allowed parallel uploads (0
