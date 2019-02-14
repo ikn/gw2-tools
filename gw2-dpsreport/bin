@@ -63,14 +63,6 @@ parse_path_boss_name () {
     echo "${dir_name##*/}"
 }
 
-# given log file path, print date as %Y%m%d%H%M%S
-parse_path_date () {
-    local f="$1"
-    local name="${f##*/}"
-    local date="${name%.*}"
-    echo "${date/-/}"
-}
-
 # remove all created temporary files
 cleanup () {
     rm -rf "$TEMP_DIR"
@@ -141,7 +133,7 @@ filter_logs_size () {
 # read lines: FILE_PATH
 # write lines: NUM_BOSS_ATTEMPTS FILE_PATH
 filter_logs_grouped () {
-    {
+    sort | {
         local prev_boss_name=
         local num_attempts=0
         local prev_f
@@ -153,7 +145,7 @@ filter_logs_grouped () {
                 num_attempts="$((num_attempts + 1))"
             else
                 [ "$num_attempts" != 0 ] &&
-                    echo "$(parse_path_date "$prev_f") $num_attempts $prev_f"
+                    echo "$num_attempts $prev_f"
                 prev_boss_name="$boss_name"
                 num_attempts=1
             fi
@@ -161,9 +153,21 @@ filter_logs_grouped () {
         done
 
         [ "$num_attempts" != 0 ] &&
-            echo "$(parse_path_date "$prev_f") $num_attempts $prev_f"
+            echo "$num_attempts $prev_f"
 
-    } < <(sort) |
+    }
+}
+
+# sort logs in ascending order by date
+# read and write lines: NUM_BOSS_ATTEMPTS FILE_PATH
+sort_logs_date () {
+    local num_attempts
+    local f
+    while read -r num_attempts f; do
+        local name="${f##*/}"
+        local date="${name%.*}"
+        echo "${date/-/} $num_attempts $f"
+    done |
         sort -n |
         while read -r date num_attempts f; do
             echo "$num_attempts" "$f"
@@ -386,9 +390,14 @@ trap cleanup TERM INT EXIT
 for f in "$LOGS_PATH"/*/*.evtc{,.*}; do echo "$f"; done |
     if [ "$DAY" = "$DAY_VALUE_LATEST_ONLY" ]; then
         # dummy attempt count value - ignored in `display_results`
-        tail -n1 | while read -r f; do echo 0 "$f"; done
+        while read -r f; do echo 0 "$f"; done |
+            sort_logs_date |
+            tail -n1
     else
-        filter_logs_time | filter_logs_size | filter_logs_grouped
+        filter_logs_time |
+            filter_logs_size |
+            filter_logs_grouped |
+            sort_logs_date
     fi |
     upload_logs |
     buffer_input |
