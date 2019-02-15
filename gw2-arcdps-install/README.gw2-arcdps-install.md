@@ -10,9 +10,13 @@ wget: https://www.gnu.org/software/wget/
 
 # Usage
 
-`gw2-arcdps-install INSTALL_DIR`
+Takes no arguments.
 
-- `INSTALL_DIR`: path to the directory containing the Guild Wars 2 executable
+## Environment variables
+
+- `GW2_INSTALL_PATH` or `WINEPREFIX` (required): directory containing the
+  Guild Wars 2 executable, or try to work out this directory from the Wine data
+  directory
 
 # Notes
 
