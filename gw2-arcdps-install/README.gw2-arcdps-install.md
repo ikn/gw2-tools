@@ -1,7 +1,6 @@
 gw2-arcdps-install 0-next.
 
-Install [arcdps](https://www.deltaconnected.com/arcdps/) and the build templates
-addon.
+Install [arcdps](https://www.deltaconnected.com/arcdps/).
 
 # Dependencies
 
@@ -10,7 +9,7 @@ wget: https://www.gnu.org/software/wget/
 
 # Usage
 
-Takes no arguments.
+Run `gw2-arcdps-install --help` to print usage information.
 
 ## Environment variables
 
