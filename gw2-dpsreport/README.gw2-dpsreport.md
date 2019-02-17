@@ -1,17 +1,17 @@
-gw2-dpsreport 1.2-next.
+gw2-dpsreport 1.3.
 
 Upload a day's [arcdps](https://www.deltaconnected.com/arcdps/) logs to
 [dps.report](https://dps.report/).
 
 # Dependencies
 
-Bash (>= 3): https://www.gnu.org/software/bash/
-curl: https://curl.haxx.se/
-Jshon: http://kmkeen.com/jshon/ formats
-GNU Parallel: https://www.gnu.org/software/parallel/
-p7zip: http://p7zip.sourceforge.net/
- - optional: compress files before upload
- - optional: work with log files compressed in formats other than Zip
+- Bash (>= 3): https://www.gnu.org/software/bash/
+- curl: https://curl.haxx.se/
+- Jshon: http://kmkeen.com/jshon/ formats
+- GNU Parallel: https://www.gnu.org/software/parallel/
+- p7zip: http://p7zip.sourceforge.net/
+    - optional: compress files before upload
+    - optional: work with log files compressed in formats other than Zip
 
 # Usage
 
@@ -46,7 +46,6 @@ p7zip: http://p7zip.sourceforge.net/
 
 # Wish list
 
-- default for `GW2_DPSREPORT_LOGS_PATH` based on `WINEPREFIX`
 - proper option handling with help and version options
 - option to copy the result to the clipboard, environment variable to choose the
   clipboard

@@ -107,21 +107,24 @@ read_options () {
 
 
 install_arcdps () {
-    tmp="$(mktemp -d)"
+    local tmp
+    tmp="$(mktemp -d)" || return 1
     cd "$tmp"
 
-    wget --no-verbose \
-        "$BASE_URL/$DLL_NAME" "$BASE_URL/$DLL_NAME.md5sum" || exit 1
+    curl --silent --show-error "$BASE_URL/$DLL_NAME" > "$DLL_NAME" || return 1
+    curl --silent --show-error "$BASE_URL/$DLL_NAME.md5sum" \
+        > "$DLL_NAME.md5sum" || return 1
     if [ "$opt_build_templates" = y ]; then
-        wget --no-verbose "$BASE_URL/buildtemplates/$BT_DLL_NAME" || exit 1
+        curl --silent --show-error "$BASE_URL/buildtemplates/$BT_DLL_NAME" \
+            > "$BT_DLL_NAME" || return 1
     fi
     # md5sum file expects files to be in directory `x64`
-    mkdir x64 || exit 1
-    cp "$DLL_NAME" x64 || exit 1
-    md5sum --quiet --check "$DLL_NAME.md5sum" || exit 1
-    install -m644 "$DLL_NAME" "$env_install_path" || exit 1
+    mkdir x64 || return 1
+    cp "$DLL_NAME" x64 || return 1
+    md5sum --quiet --check "$DLL_NAME.md5sum" || return 1
+    install -m644 "$DLL_NAME" "$env_install_path" || return 1
     if [ "$opt_build_templates" = y ]; then
-        install -m644 "$BT_DLL_NAME" "$env_install_path" || exit 1
+        install -m644 "$BT_DLL_NAME" "$env_install_path" || return 1
     fi
 
     rm -rf "$tmp"

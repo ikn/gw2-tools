@@ -1,11 +1,11 @@
-gw2-arcdps-install 1.0.
+gw2-arcdps-install 1.0-next.
 
 Install [arcdps](https://www.deltaconnected.com/arcdps/).
 
 # Dependencies
 
-Bash: https://www.gnu.org/software/bash/
-wget: https://www.gnu.org/software/wget/
+- Bash: https://www.gnu.org/software/bash/
+- curl: https://curl.haxx.se/
 
 # Usage
 
