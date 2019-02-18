@@ -1,4 +1,6 @@
 5:
+ * gw2-arcdps-install:
+    * add `--uninstall` option
 
 4:
  * add gw2-arcdps-install

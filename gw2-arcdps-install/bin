@@ -2,8 +2,8 @@
 
 PROGRAM="gw2-arcdps-install"
 VERSION="1.0"
-SHORT_OPTIONS="hb"
-LONG_OPTIONS="version,help,build-templates"
+SHORT_OPTIONS="hbr"
+LONG_OPTIONS="version,help,build-templates,uninstall"
 ERR_OTHER=1
 ERR_USAGE=2
 BASE_URL="http://www.deltaconnected.com/arcdps/x64"
@@ -13,6 +13,7 @@ BT_DLL_NAME="d3d9_arcdps_buildtemplates.dll"
 env_install_path=
 
 opt_build_templates=n
+opt_install=y
 
 
 err () {
@@ -48,6 +49,9 @@ print_help() {
     echo "Options:"
     echo "  -b, --build-templates"
     echo "                also install the arcdps build templates addon"
+    echo "  -r, --uninstall"
+    echo "                remove installed files, if present; must specify"
+    echo "                \`--build-templates' to remove build templates files"
     echo "  -h, --help    display this help and exit"
     echo "  --version     display version information and exit"
 }
@@ -71,7 +75,7 @@ validate_install_path () {
         echo >&2 "no such directory: $env_install_path"
         exit 2
     }
-    echo >&2 "info: installing to directory: $env_install_path"
+    echo >&2 "info: using install directory: $env_install_path"
 }
 
 
@@ -95,6 +99,10 @@ read_options () {
                 ;;
             '-b'|'--build-templates')
                 opt_build_templates=y
+                shift
+                ;;
+            '-r'|'--uninstall')
+                opt_install=n
                 shift
                 ;;
             '--')
@@ -131,6 +139,14 @@ install_arcdps () {
 }
 
 
+uninstall_arcdps () {
+    rm -f "$env_install_path/$DLL_NAME" || return 1
+    if [ "$opt_build_templates" = y ]; then
+        rm -f "$env_install_path/$BT_DLL_NAME" || return 1
+    fi
+}
+
+
 getopt -T &> /dev/null
 if [ "$?" -ne 4 ]; then
     err "$ERR_OTHER" "unsupported version of \`getopt'"
@@ -146,4 +162,9 @@ fi
 eval set -- "$options_script"
 read_options "$@"
 read_env
-install_arcdps
+
+if [ "$opt_install" = y ]; then
+    install_arcdps
+else
+    uninstall_arcdps
+fi
