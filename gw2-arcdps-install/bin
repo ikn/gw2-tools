@@ -2,8 +2,8 @@
 
 PROGRAM="gw2-arcdps-install"
 VERSION="1.0"
-SHORT_OPTIONS="hbr"
-LONG_OPTIONS="version,help,build-templates,uninstall"
+SHORT_OPTIONS="hbrf"
+LONG_OPTIONS="version,help,build-templates,uninstall,force"
 ERR_OTHER=1
 ERR_USAGE=2
 BASE_URL="http://www.deltaconnected.com/arcdps/x64"
@@ -14,6 +14,7 @@ env_install_path=
 
 opt_build_templates=n
 opt_install=y
+opt_force=n
 
 
 err () {
@@ -52,6 +53,7 @@ print_help() {
     echo "  -r, --uninstall"
     echo "                remove installed files, if present; must specify"
     echo "                \`--build-templates' to remove build templates files"
+    echo "  -f, --force   update all files even if it looks like they didn't change"
     echo "  -h, --help    display this help and exit"
     echo "  --version     display version information and exit"
 }
@@ -105,6 +107,10 @@ read_options () {
                 opt_install=n
                 shift
                 ;;
+            '-f'|'--force')
+                opt_force=y
+                shift
+                ;;
             '--')
                 shift
                 break
@@ -115,24 +121,46 @@ read_options () {
 
 
 install_arcdps () {
+    local main_uptodate=n
+    local dir="$env_install_path"
     local tmp
     tmp="$(mktemp -d)" || return 1
     cd "$tmp"
 
-    curl --silent --show-error "$BASE_URL/$DLL_NAME" > "$DLL_NAME" || return 1
     curl --silent --show-error "$BASE_URL/$DLL_NAME.md5sum" \
         > "$DLL_NAME.md5sum" || return 1
-    if [ "$opt_build_templates" = y ]; then
-        curl --silent --show-error "$BASE_URL/buildtemplates/$BT_DLL_NAME" \
-            > "$BT_DLL_NAME" || return 1
-    fi
-    # md5sum file expects files to be in directory `x64`
+    # md5sum file expects file to be in directory `x64`
     mkdir x64 || return 1
-    cp "$DLL_NAME" x64 || return 1
-    md5sum --quiet --check "$DLL_NAME.md5sum" || return 1
-    install -m644 "$DLL_NAME" "$env_install_path" || return 1
+    if [ "$opt_force" = n ] && [ -f "$dir/$DLL_NAME" ]; then
+        cp "$dir/$DLL_NAME" "x64/$DLL_NAME"
+        md5sum --status --check "$DLL_NAME.md5sum" && main_uptodate=y
+    fi
+
+    if [ "$main_uptodate" = y ]; then
+        echo >&2 "info: arcdps checksum didn't change; skipping update"
+    else
+        curl --silent --show-error "$BASE_URL/$DLL_NAME" \
+            > "x64/$DLL_NAME" || return 1
+        md5sum --quiet --check "$DLL_NAME.md5sum" || return 1
+        install -m644 "x64/$DLL_NAME" "$dir" || return 1
+    fi
+
+
+    # there's checksum available for build templates, so we assume that if the
+    # main file is up-to-date, and the build templates file was updated as
+    # recently as the main file, then the build templates file is also
+    # up-to-date
     if [ "$opt_build_templates" = y ]; then
-        install -m644 "$BT_DLL_NAME" "$env_install_path" || return 1
+        if [ "$main_uptodate" = y ] &&
+            [ -f "$dir/$BT_DLL_NAME" ] &&
+            ! [ "$dir/$BT_DLL_NAME" -ot "$dir/$DLL_NAME" ]
+        then
+            echo >&2 -n "info: build templates addon probably didn't change; "
+            echo >&2 "skipping update"
+        else
+            curl --silent --show-error "$BASE_URL/buildtemplates/$BT_DLL_NAME" \
+                > "$dir/$BT_DLL_NAME" || return 1
+        fi
     fi
 
     rm -rf "$tmp"
