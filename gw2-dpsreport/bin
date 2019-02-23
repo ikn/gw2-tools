@@ -4,11 +4,12 @@ source `which env_parallel.bash`
 env_parallel --session
 shopt -s nullglob
 
-LOGS_PATH="$GW2_DPSREPORT_LOGS_PATH"
-URL="${GW2_DPSREPORT_URL:-https://dps.report}"
-UPLOAD_PARALLEL_LIMIT="${GW2_DPSREPORT_UPLOAD_PARALLEL_LIMIT:-5}"
-SIZE_THRESHOLD_CUSTOM="${GW2_DPSREPORT_SIZE_THRESHOLD_CUSTOM:-0}"
-
+PROGRAM="gw2-dpsreport"
+VERSION="1.3-next"
+SHORT_OPTIONS="h"
+LONG_OPTIONS="version,help"
+ERR_OTHER=1
+ERR_USAGE=2
 # where the day boundary falls, as %H%M%S/%H:%M:%S
 DAY_START_NUM=050000
 DAY_START_TIME=05:00:00
@@ -19,47 +20,148 @@ SIZE_THRESHOLD_RAW=2000000
 SIZE_THRESHOLD_ZIP=300000
 TEMP_DIR="$(mktemp -d)"
 
-DAY="$1"
+env_logs_path=
+env_url="https://dps.report"
+env_upload_parallel_limit=5
+env_size_threshold_custom=0
 
-[ -z "$LOGS_PATH" ] && {
-    if [ -n "$WINEPREFIX" ]; then
-        wine_docs="$WINEPREFIX/drive_c/users/$USER/My Documents"
-        LOGS_PATH="$wine_docs/Guild Wars 2/addons/arcdps/arcdps.cbtlogs"
-    else
-        echo >&2 "error: environment variable not set: GW2_DPSREPORT_LOGS_PATH"
-        exit 2
+arg_day=
+
+
+err () {
+    code="$1"
+    shift
+    echo >&2 "$PROGRAM: error:" "$@"
+    exit "$code"
+}
+
+
+usage_err () {
+    if [ "$#" -gt 0 ]; then
+        echo >&2 "$PROGRAM: error:" "$@"
     fi
+    echo >&2
+    echo >&2 "Call with \`--help' to display usage information."
+    exit "$ERR_USAGE"
 }
-[ -d "$LOGS_PATH" ] || {
-    echo >&2 "error: not a directory: $LOGS_PATH"
-    exit 2
+
+
+print_version () {
+    echo "$PROGRAM $VERSION"
 }
-[[ "$UPLOAD_PARALLEL_LIMIT" =~ ^[0-9]+$ ]] || {
-    echo >&2 -n "error: GW2_DPSREPORT_UPLOAD_PARALLEL_LIMIT: not a number:"
-    echo >&2 "$UPLOAD_PARALLEL_LIMIT"
-    exit 2
+
+
+print_help() {
+    print_version
+    # end-of-line marker ->                                                               |
+    echo
+    echo "Upload a day's arcdps logs to \`dps.report'."
+    echo
+    echo "Usage: $PROGRAM [OPTION]... DAY"
+    echo
+    echo "DAY is the day to upload logs for, as accepted by \`date', (eg. 'today', 'last"
+    echo "wednesday', 'friday 3 weeks ago', '2001-02-03').  You can also use the special"
+    echo "value 'latest', which means only upload the single most recent log, from any"
+    echo "day."
+    echo
+    echo "- Uploads the last log file for each encounter in the specified day, regardless"
+    echo "  of whether or not there was a successful attempt."
+    echo "- A 'day' starts and ends at 5am, in your local timezone."
+    echo "- 'Small' log files are excluded, for some hard-coded definition (also see"
+    echo "  \`GW2_DPSREPORT_SIZE_THRESHOLD_CUSTOM')."
+    echo "- Logs may be uncompressed, or compressed using any format supported by p7zip"
+    echo "  (if it's installed).  File extension is used to determine whether to"
+    echo "  decompress/compress."
+    echo
+    echo "Options:"
+    echo "  -h, --help    display this help and exit"
+    echo "  --version     display version information and exit"
+    echo
+    echo "Environment variables:"
+    echo "  GW2_DPSREPORT_LOGS_PATH or WINEPREFIX (required)"
+    echo "      directory containing the encounter directories, or try to work out this"
+    echo "      directory from the Wine data directory"
+    echo "  GW2_DPSREPORT_URL (default: 'https://dps.report')"
+    echo "      the base URL to upload logs to"
+    echo "  GW2_DPSREPORT_UPLOAD_PARALLEL_LIMIT (default: 5)"
+    echo "      maximum allowed parallel uploads (0 means no maximum)"
+    echo "  GW2_DPSREPORT_SIZE_THRESHOLD_CUSTOM (default: 0)"
+    echo "      logs compressed in a format other than Zip are excluded if they have a"
+    echo "      size smaller than this many bytes"
 }
-[[ "$SIZE_THRESHOLD_CUSTOM" =~ ^[0-9]+$ ]] || {
-    echo >&2 -n "error: GW2_DPSREPORT_SIZE_THRESHOLD_CUSTOM: not a number:"
-    echo >&2 "$SIZE_THRESHOLD_CUSTOM"
-    exit 2
-}
-[ "$#" -ne 1 ] && {
-    echo >&2 "usage: gw2-dpsreport DAY"
-    echo >&2 "DAY: eg. 'today', 'last wednesday', '2001-02-03'"
-    exit 2
-}
-[ "$DAY" = "$DAY_VALUE_LATEST_ONLY" ] ||
-    date &> /dev/null --date="$DAY" "+%Y%m%d %H:%M:%S" ||
-    {
-        echo >&2 "error: invalid day: $DAY"
-        exit 2
+
+
+read_env () {
+    env_logs_path="$GW2_DPSREPORT_LOGS_PATH"
+    [ -z "$env_logs_path" ] && {
+        if [ -n "$WINEPREFIX" ]; then
+            wine_docs="$WINEPREFIX/drive_c/users/$USER/My Documents"
+            env_logs_path="$wine_docs/Guild Wars 2/addons/arcdps/arcdps.cbtlogs"
+        else
+            usage_err "environment variable not set: GW2_DPSREPORT_LOGS_PATH"
+        fi
     }
-type -p 7z > /dev/null || {
-    echo >&2 -n "warning: 7z not found; "
-    echo >&2 "logs compressed in formats other than Zip will be ignored; "
-    echo >&2 "uncompressed logs will be uploaded without compression"
+    [ -d "$env_logs_path" ] || {
+        usage_err "not a directory: $env_logs_path"
+    }
+
+    env_url="${GW2_DPSREPORT_URL:-$env_url}"
+
+    env_upload_parallel_limit="${GW2_DPSREPORT_UPLOAD_PARALLEL_LIMIT:-$env_upload_parallel_limit}"
+    [[ "$env_upload_parallel_limit" =~ ^[0-9]+$ ]] || {
+        usage_err "GW2_DPSREPORT_UPLOAD_PARALLEL_LIMIT: not a number:" \
+            "$env_upload_parallel_limit"
+    }
+
+    env_size_threshold_custom="${GW2_DPSREPORT_SIZE_THRESHOLD_CUSTOM:-$env_size_threshold_custom}"
+    [[ "$env_size_threshold_custom" =~ ^[0-9]+$ ]] || {
+        usage_err "GW2_DPSREPORT_SIZE_THRESHOLD_CUSTOM: not a number:" \
+            "$env_size_threshold_custom"
+    }
+
+    type -p 7z > /dev/null || {
+        echo >&2 -n "warning: 7z not found; "
+        echo >&2 -n "logs compressed in formats other than Zip will be ignored; "
+        echo >&2 "uncompressed logs will be uploaded without compression"
+    }
 }
+
+
+read_args () {
+    [ "$#" -ne 1 ] && {
+        usage_err "missing argument: DAY"
+    }
+
+    arg_day="$1"
+    [ "$arg_day" = "$DAY_VALUE_LATEST_ONLY" ] ||
+        date &> /dev/null --date="$arg_day" "+%Y%m%d %H:%M:%S" ||
+        {
+            usage_err "invalid value for DAY: $arg_day"
+        }
+}
+
+
+read_options () {
+    while true; do
+        case "$1" in
+            '--version')
+                print_version
+                exit 0
+                ;;
+            '-h'|'--help')
+                print_help
+                exit 0
+                ;;
+            '--')
+                shift
+                break
+                ;;
+        esac
+    done
+
+    read_args "$@"
+}
+
 
 # given log file path, print boss name
 parse_path_boss_name () {
@@ -68,19 +170,21 @@ parse_path_boss_name () {
     echo "${dir_name##*/}"
 }
 
+
 # remove all created temporary files
 cleanup () {
     rm -rf "$TEMP_DIR"
 }
 
-# filter log files to those that were recorded on the day specified in $DAY
+
+# filter log files to those that were recorded on the day specified in $arg_day
 # read lines: FILE_PATH
 # write lines: FILE_PATH
 filter_logs_time () {
     local num_format="%Y%m%d%H%M%S"
-    local time_num="$(date --date="$DAY" +%H%M%S)"
-    local date_unixtime="$(date --date="$DAY" +%s)"
-    local day="$(date --date="$DAY" +%Y%m%d)"
+    local time_num="$(date --date="$arg_day" +%H%M%S)"
+    local date_unixtime="$(date --date="$arg_day" +%s)"
+    local day="$(date --date="$arg_day" +%Y%m%d)"
 
     # move back 1 day if time falls before the threshold
     # however, if time is midnight exactly, it's very likely that the user
@@ -110,6 +214,7 @@ filter_logs_time () {
     done
 }
 
+
 # filter log files to those above the small-file threshold
 # read lines: FILE_PATH
 # write lines: FILE_PATH
@@ -124,7 +229,7 @@ filter_logs_size () {
         elif [ "$ext" = zip ]; then
             limit="$SIZE_THRESHOLD_ZIP"
         else
-            limit="$SIZE_THRESHOLD_CUSTOM"
+            limit="$env_size_threshold_custom"
         fi
 
         if [ "$size" -ge "$limit" ]; then
@@ -132,6 +237,7 @@ filter_logs_size () {
         fi
     done
 }
+
 
 # filter log files to the last attempt at each encounter, count attempts, and
 # sort by date
@@ -163,6 +269,7 @@ filter_logs_grouped () {
     }
 }
 
+
 # sort logs in ascending order by date
 # read and write lines: NUM_BOSS_ATTEMPTS FILE_PATH
 sort_logs_date () {
@@ -178,6 +285,7 @@ sort_logs_date () {
             echo "$num_attempts" "$f"
         done
 }
+
 
 # decompress_log LOG_FILE
 #
@@ -202,6 +310,7 @@ decompress_log () {
     fi
 }
 
+
 # compress_log LOG_FILE
 #
 # Compress LOG_FILE, if necessary, and write the result to a temporary file.
@@ -225,6 +334,7 @@ compress_log () {
     fi
 }
 
+
 # upload log file at the given path
 #
 # write line: RESULT URL
@@ -245,7 +355,7 @@ upload_log () {
     local orig_filename="$(basename "$orig_file")"
     local upload_name="${orig_filename%.*}.${file##*.}"
 
-    local url="$URL"/uploadContent
+    local url="$env_url"/uploadContent
     local res
     res="$(curl 2> >(stdbuf -oL tr '\r' '\n' >&3) "$url" \
         -F file="@$file;filename=$upload_name" \
@@ -255,14 +365,14 @@ upload_log () {
     [ "$tmp_file2" != "$orig_file" ] && rm -f "$tmp_file2"
     [ "$err_code" -ne 0 ] && {
         echo unknown "$res"
-        return 1
+        return "$ERR_OTHER"
     }
 
     local err
     err="$(jshon -Q -e error <<<"$res")"
     if [ "$?" != 0 ] || [ "$err" != null ]; then
         echo unknown "${err:-$res}"
-        return 1
+        return "$ERR_OTHER"
     fi
 
     local result=unknown
@@ -278,11 +388,12 @@ upload_log () {
     local link
     link="$(jshon -Q -e permalink -u <<<"$res")" || {
         echo unknown "unexpected HTTP response: $res"
-        return 1
+        return "$ERR_OTHER"
     }
 
     echo "$result $link"
 }
+
 
 # combine progress updates from multiple `curl` invocations, given the total
 # number of invocations
@@ -320,6 +431,7 @@ combine_upload_progress () {
     }
 }
 
+
 # upload log files; failed uploads (RESULT = unknown) are printed with an error
 # message instead of the URL
 # read lines: NUM_BOSS_ATTEMPTS FILE_PATH
@@ -337,7 +449,7 @@ upload_logs () {
         # combining progress bars for terminal output
         # replacing only the first space from `upload_log` with / since boss
         # name can contain spaces
-        env_parallel --line-buffer --jobs "$UPLOAD_PARALLEL_LIMIT" -- \
+        env_parallel --line-buffer --jobs "$env_upload_parallel_limit" -- \
             'echo -n {#}/{= $_ =~ s/ .+// =}/$(parse_path_boss_name {= $_ =~ s/^.+? // =})/;' \
             'upload_log {= $_ =~ s/^.+? // =}' \
             '    3> >(stdbuf -oL sed "s/^/{#} /" >&3)' \
@@ -356,6 +468,7 @@ upload_logs () {
         }
 }
 
+
 # read standard input until EOF, then print it
 buffer_input () {
     local input="$(cat)"
@@ -367,6 +480,7 @@ buffer_input () {
     fi
 }
 
+
 # print log upload results in a human-readable format
 # read lines: NUM_BOSS_ATTEMPTS/BOSS_NAME/RESULT/(URL|ERROR)
 display_results () {
@@ -376,7 +490,7 @@ display_results () {
     local url
 
     while IFS=/ read -r num_attempts boss_name result url; do
-        if [ "$DAY" = "$DAY_VALUE_LATEST_ONLY" ]; then
+        if [ "$arg_day" = "$DAY_VALUE_LATEST_ONLY" ]; then
             echo -n "$boss_name ($result): "
         else
             echo -n "$boss_name (attempts: $num_attempts, $result): "
@@ -391,22 +505,44 @@ display_results () {
     done
 }
 
-trap cleanup TERM INT EXIT
-for f in "$LOGS_PATH"/*/*.evtc{,.*}; do echo "$f"; done |
-    if [ "$DAY" = "$DAY_VALUE_LATEST_ONLY" ]; then
-        # dummy attempt count value - ignored in `display_results`
-        while read -r f; do echo 0 "$f"; done |
-            sort_logs_date |
-            tail -n1
-    else
-        filter_logs_time |
-            filter_logs_size |
-            filter_logs_grouped |
-            sort_logs_date
-    fi |
-    upload_logs |
-    buffer_input |
-    display_results
-for c in "${PIPESTATUS[@]}"; do
-    [ "$c" != 0 ] && exit "$c"
-done
+
+dpsreport () {
+    trap cleanup TERM INT EXIT
+    for f in "$env_logs_path"/*/*.evtc{,.*}; do echo "$f"; done |
+        if [ "$arg_day" = "$DAY_VALUE_LATEST_ONLY" ]; then
+            # dummy attempt count value - ignored in `display_results`
+            while read -r f; do echo 0 "$f"; done |
+                sort_logs_date |
+                tail -n1
+        else
+            filter_logs_time |
+                filter_logs_size |
+                filter_logs_grouped |
+                sort_logs_date
+        fi |
+        upload_logs |
+        buffer_input |
+        display_results
+    for c in "${PIPESTATUS[@]}"; do
+        [ "$c" != 0 ] && exit "$c"
+    done
+}
+
+
+getopt -T &> /dev/null
+if [ "$?" -ne 4 ]; then
+    err "$ERR_OTHER" "unsupported version of \`getopt'"
+fi
+options_script="$(getopt --name "$PROGRAM" --shell bash \
+    --options "$SHORT_OPTIONS" --longoptions "$LONG_OPTIONS" -- "$@")"
+getopt_code="$?"
+if [ "$getopt_code" -eq 1 ]; then
+    usage_err
+elif [ "$getopt_code" -ne 0 ]; then
+    exit 1
+fi
+eval set -- "$options_script"
+read_env
+read_options "$@"
+
+dpsreport

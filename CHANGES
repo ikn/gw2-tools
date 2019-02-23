@@ -2,6 +2,8 @@
  * gw2-arcdps-install:
     * add `--uninstall` option
     * doesn't download latest version if it hasn't changed
+ * gw2-dpsreport:
+    * option parsing
 
 4:
  * add gw2-arcdps-install
