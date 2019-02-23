@@ -1,7 +1,7 @@
 #! /usr/bin/env bash
 
 PROGRAM="gw2-arcdps-install"
-VERSION="1.0"
+VERSION="1.0-next"
 SHORT_OPTIONS="hbrf"
 LONG_OPTIONS="version,help,build-templates,uninstall,force"
 ERR_OTHER=1
@@ -42,8 +42,9 @@ print_version () {
 
 print_help() {
     print_version
+    # end-of-line marker ->                                                               |
     echo
-    echo "Install the Guild Wars mod arcdps."
+    echo "Install the Guild Wars 2 mod arcdps."
     echo
     echo "Usage: $PROGRAM [OPTION]..."
     echo
@@ -56,6 +57,11 @@ print_help() {
     echo "  -f, --force   update all files even if it looks like they didn't change"
     echo "  -h, --help    display this help and exit"
     echo "  --version     display version information and exit"
+    echo
+    echo "Environment variables:"
+    echo "  GW2_INSTALL_PATH or WINEPREFIX (required)"
+    echo "      directory containing the Guild Wars 2 executable, or try to work out this"
+    echo "      directory from the Wine data directory"
 }
 
 
@@ -64,18 +70,15 @@ validate_install_path () {
         if [ -n "$WINEPREFIX" ]; then
             env_install_path="$WINEPREFIX/drive_c/Program Files/Guild Wars 2"
         else
-            echo >&2 "error: environment variable not set: GW2_INSTALL_PATH"
-            exit 2
+            usage_err "environment variable not set: GW2_INSTALL_PATH"
         fi
     }
     [ -d "$env_install_path" ] || {
-        echo >&2 "error: not a directory: $env_install_path"
-        exit 2
+        err "$ERR_OTHER" "not a directory: $env_install_path"
     }
     env_install_path="$env_install_path/bin64"
     [ -d "$env_install_path" ] || {
-        echo >&2 "no such directory: $env_install_path"
-        exit 2
+        err "$ERR_OTHER" "no such directory: $env_install_path"
     }
     echo >&2 "info: using install directory: $env_install_path"
 }

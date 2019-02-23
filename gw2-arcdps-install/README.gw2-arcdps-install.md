@@ -11,12 +11,6 @@ Install [arcdps](https://www.deltaconnected.com/arcdps/).
 
 Run `gw2-arcdps-install --help` to print usage information.
 
-## Environment variables
-
-- `GW2_INSTALL_PATH` or `WINEPREFIX` (required): directory containing the
-  Guild Wars 2 executable, or try to work out this directory from the Wine data
-  directory
-
 # Notes
 
 - Doesn't set up chainloading to the original `d3d9.dll` - that must be set up
