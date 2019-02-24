@@ -4,6 +4,7 @@
     * doesn't download latest version if it hasn't changed
  * gw2-dpsreport:
     * option parsing
+    * take encounter name from upload result, if available
 
 4:
  * add gw2-arcdps-install

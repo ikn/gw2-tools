@@ -337,7 +337,7 @@ compress_log () {
 
 # upload log file at the given path
 #
-# write line: RESULT URL
+# write line: RESULT/BOSS_NAME/URL
 # RESULT: adjective describing whether the encounter attempt succeeded
 # This also written also on error, in which case RESULT is unknown and URL is
 # the error message.
@@ -385,13 +385,17 @@ upload_log () {
         fi
     fi
 
+    local boss_name
+    boss_name="$(jshon -Q -e encounter -e boss -u <<<"$res" | sed 's:/: :')"
+    [ -z "$boss_name" ] && boss_name="$(parse_path_boss_name "$orig_file")"
+
     local link
     link="$(jshon -Q -e permalink -u <<<"$res")" || {
         echo unknown "unexpected HTTP response: $res"
         return "$ERR_OTHER"
     }
 
-    echo "$result $link"
+    echo "$result/$boss_name/$link"
 }
 
 
@@ -435,7 +439,7 @@ combine_upload_progress () {
 # upload log files; failed uploads (RESULT = unknown) are printed with an error
 # message instead of the URL
 # read lines: NUM_BOSS_ATTEMPTS FILE_PATH
-# write lines: NUM_BOSS_ATTEMPTS/BOSS_NAME/RESULT/(URL|ERROR)
+# write lines: NUM_BOSS_ATTEMPTS/RESULT/BOSS_NAME/(URL|ERROR)
 upload_logs () {
     # need to read in all lines before we start, to count them for progress
     # reporting
@@ -450,20 +454,19 @@ upload_logs () {
         # replacing only the first space from `upload_log` with / since boss
         # name can contain spaces
         env_parallel --line-buffer --jobs "$env_upload_parallel_limit" -- \
-            'echo -n {#}/{= $_ =~ s/ .+// =}/$(parse_path_boss_name {= $_ =~ s/^.+? // =})/;' \
+            'echo -n {#}/{= $_ =~ s/ .+// =}/;' \
             'upload_log {= $_ =~ s/^.+? // =}' \
             '    3> >(stdbuf -oL sed "s/^/{#} /" >&3)' \
-            '    | sed "s: :/:"' \
             3> >(combine_upload_progress "$num_logs" >&2) |
             sort -n |
         {
             local num
             local num_attempts
-            local boss_name
             local result
+            local boss_name
             local url
-            while IFS=/ read -r num num_attempts boss_name result url; do
-                echo "$num_attempts/$boss_name/$result/$url"
+            while IFS=/ read -r num num_attempts result boss_name url; do
+                echo "$num_attempts/$result/$boss_name/$url"
             done
         }
 }
@@ -482,14 +485,14 @@ buffer_input () {
 
 
 # print log upload results in a human-readable format
-# read lines: NUM_BOSS_ATTEMPTS/BOSS_NAME/RESULT/(URL|ERROR)
+# read lines: NUM_BOSS_ATTEMPTS/RESULT/BOSS_NAME/URL|ERROR)
 display_results () {
     local num_attempts
-    local boss_name
     local result
+    local boss_name
     local url
 
-    while IFS=/ read -r num_attempts boss_name result url; do
+    while IFS=/ read -r num_attempts result boss_name url; do
         if [ "$arg_day" = "$DAY_VALUE_LATEST_ONLY" ]; then
             echo -n "$boss_name ($result): "
         else
