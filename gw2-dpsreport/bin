@@ -6,8 +6,8 @@ shopt -s nullglob
 
 PROGRAM="gw2-dpsreport"
 VERSION="1.3-next"
-SHORT_OPTIONS="h,c"
-LONG_OPTIONS="version,help,clipboard"
+SHORT_OPTIONS="hcf:"
+LONG_OPTIONS="version,help,clipboard,on-failure:"
 ERR_OTHER=1
 ERR_USAGE=2
 # where the day boundary falls, as %H%M%S/%H:%M:%S
@@ -29,6 +29,7 @@ env_clipboard=primary
 arg_day=
 
 opt_clipboard=n
+opt_on_failure=last
 
 
 err () {
@@ -79,6 +80,9 @@ print_help() {
     echo "Options:"
     echo "  -c, --clipboard"
     echo "                copy the result to clipboard"
+    echo "  -f, --on-failure=ACTION"
+    echo "                what to do if the last log for an encounter isn't a"
+    echo "                successful attempt (see 'Failure actions' below)"
     echo "  -h, --help    display this help and exit"
     echo "  --version     display version information and exit"
     echo
@@ -96,6 +100,10 @@ print_help() {
     echo "  GW2_DPSREPORT_CLIPBOARD (default: primary)"
     echo "      when specifying \`--clipboard', use this X selection (see xclip's"
     echo "      \`-selection' option)"
+    echo
+    echo "Failure actions (default: last):"
+    echo "  last          upload the most recent log for the encounter"
+    echo "  skip          don't upload any logs for the encounter"
 }
 
 
@@ -165,6 +173,10 @@ read_options () {
                 opt_clipboard=y
                 shift
                 ;;
+            '-f'|'--on-failure')
+                opt_on_failure="$2"
+                shift 2
+                ;;
             '--')
                 shift
                 break
@@ -175,6 +187,10 @@ read_options () {
     if [ "$opt_clipboard" = y ] && ! type -p xclip > /dev/null; then
         err "$ERR_OTHER" \
             "\`--clipboard' option provided but xclip is not available"
+    fi
+
+    if [ "$opt_on_failure" != last ] && [ "$opt_on_failure" != skip ]; then
+        usage_err "\`--on-failure': invalid argument: $opt_on_failure"
     fi
 
     read_args "$@"
@@ -484,7 +500,11 @@ upload_logs () {
             local boss_name
             local url
             while IFS=/ read -r num num_attempts result boss_name url; do
-                echo "$num_attempts/$result/$boss_name/$url"
+                if [ "$opt_on_failure" != skip ] ||
+                    [ "$result" != failure ]
+                then
+                    echo "$num_attempts/$result/$boss_name/$url"
+                fi
             done
         }
 }

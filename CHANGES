@@ -1,10 +1,11 @@
 5:
  * gw2-arcdps-install:
-    * add `--uninstall` option
+    * option to uninstall
     * doesn't download latest version if it hasn't changed
  * gw2-dpsreport:
     * option parsing
     * option to copy result to clipboard
+    * option to skip failed encounters
     * take encounter name from upload result, if available
 
 4:

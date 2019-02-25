@@ -21,6 +21,9 @@ Run `gw2-dpsreport --help` to print usage information.
 
 # Wish list
 
+- option to upload the 'best attempt' for failed encounters
+  (`--on-failure=best`) (but this would require parsing, or uploading, every log
+  for the day)
 - don't print an extra newline with no logs and `--clipboard'
 - use pipes, not temporary files (restart upload on decompress/compress error)
 - better error checking and logging with verbosity option
