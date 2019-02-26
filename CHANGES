@@ -6,6 +6,7 @@
     * option parsing
     * option to copy result to clipboard
     * option to skip failed encounters
+    * option to open reports in a web browser
     * take encounter name from upload result, if available
 
 4:

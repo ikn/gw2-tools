@@ -6,8 +6,8 @@ shopt -s nullglob
 
 PROGRAM="gw2-dpsreport"
 VERSION="1.3-next"
-SHORT_OPTIONS="hcf:"
-LONG_OPTIONS="version,help,clipboard,on-failure:"
+SHORT_OPTIONS="hcf:b"
+LONG_OPTIONS="version,help,clipboard,on-failure:,open-in-browser"
 ERR_OTHER=1
 ERR_USAGE=2
 # where the day boundary falls, as %H%M%S/%H:%M:%S
@@ -25,11 +25,13 @@ env_url="https://dps.report"
 env_upload_parallel_limit=5
 env_size_threshold_custom=0
 env_clipboard=primary
+env_browser=
 
 arg_day=
 
 opt_clipboard=n
 opt_on_failure=last
+opt_open_in_browser=n
 
 
 err () {
@@ -83,6 +85,9 @@ print_help() {
     echo "  -f, --on-failure=ACTION"
     echo "                what to do if the last log for an encounter isn't a"
     echo "                successful attempt (see 'Failure actions' below)"
+    echo "  -b, --open-in-browser"
+    echo "                open reports in the configured web browser (see"
+    echo "                GW2_DPSREPORT_WEB_BROWSER)"
     echo "  -h, --help    display this help and exit"
     echo "  --version     display version information and exit"
     echo
@@ -100,6 +105,10 @@ print_help() {
     echo "  GW2_DPSREPORT_CLIPBOARD (default: primary)"
     echo "      when specifying \`--clipboard', use this X selection (see xclip's"
     echo "      \`-selection' option)"
+    echo "  GW2_DPSREPORT_WEB_BROWSER (required with --open-in-browser)"
+    echo "      when specifying \`--open-in-browser', pass URLs as separate arguments to"
+    echo "      this command; may include extra arguments, and arguments may not contain"
+    echo "      whitespace"
     echo
     echo "Failure actions (default: last):"
     echo "  last          upload the most recent log for the encounter"
@@ -136,6 +145,8 @@ read_env () {
     }
 
     env_clipboard="${GW2_DPSREPORT_CLIPBOARD:-$env_clipboard}"
+
+    env_browser="$GW2_DPSREPORT_WEB_BROWSER"
 
     type -p 7z > /dev/null || {
         echo >&2 -n "warning: 7z not found; "
@@ -177,6 +188,10 @@ read_options () {
                 opt_on_failure="$2"
                 shift 2
                 ;;
+            '-b'|'--open-in-browser')
+                opt_open_in_browser=y
+                shift
+                ;;
             '--')
                 shift
                 break
@@ -191,6 +206,11 @@ read_options () {
 
     if [ "$opt_on_failure" != last ] && [ "$opt_on_failure" != skip ]; then
         usage_err "\`--on-failure': invalid argument: $opt_on_failure"
+    fi
+
+    if [ "$opt_open_in_browser" = y ] && [ -z "$env_browser" ]; then
+        usage_err "\`--open-in-browser' option provided but" \
+            "GW2_DPSREPORT_WEB_BROWSER is not set"
     fi
 
     read_args "$@"
@@ -522,6 +542,26 @@ buffer_input () {
 }
 
 
+# open reports in the configured web browser, if requested
+# read and write lines: NUM_BOSS_ATTEMPTS/RESULT/BOSS_NAME/URL|ERROR)
+open_results () {
+    local urls=()
+    while IFS=/ read -r num_attempts result boss_name url; do
+        urls+=("$url")
+        echo "$num_attempts/$result/$boss_name/$url"
+    done
+
+    if [ "${#urls[@]}" -gt 0 ] && [ "$opt_open_in_browser" = y ]; then
+        # it would be nice to be able to rely on xdg-open, but it only supports
+        # 1 argument, and in our use case we will almost always have multiple
+        # URLs, and we probably care about ordering
+        # we must consume stdout or the next function along will hang reading it
+        $GW2_DPSREPORT_WEB_BROWSER "${urls[@]}" >&2 &
+        disown
+    fi
+}
+
+
 # print log upload results in a human-readable format
 # read lines: NUM_BOSS_ATTEMPTS/RESULT/BOSS_NAME/URL|ERROR)
 display_results () {
@@ -547,6 +587,18 @@ display_results () {
 }
 
 
+# read result text from standard input, copy it to the clipboard if requested,
+# and print it again
+copy_results () {
+    if [ "$opt_clipboard" = y ]; then
+        xclip -filter -rmlastnl -selection "$env_clipboard"
+        echo
+    else
+        cat
+    fi
+}
+
+
 dpsreport () {
     trap cleanup TERM INT EXIT
     for f in "$env_logs_path"/*/*.evtc{,.*}; do echo "$f"; done |
@@ -563,15 +615,11 @@ dpsreport () {
         fi |
         upload_logs |
         buffer_input |
+        open_results |
         display_results |
-        if [ "$opt_clipboard" = y ]; then
-            xclip -filter -rmlastnl -selection "$env_clipboard"
-            echo
-        else
-            cat
-        fi
+        copy_results
     for c in "${PIPESTATUS[@]}"; do
-        [ "$c" != 0 ] && exit "$c"
+        [ "$c" != 0 ] && return "$c"
     done
 }
 
@@ -593,3 +641,4 @@ read_env
 read_options "$@"
 
 dpsreport
+exit "$?"
