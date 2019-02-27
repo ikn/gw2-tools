@@ -1,4 +1,4 @@
-gw2-dpsreport 1.3-next.
+gw2-dpsreport 1.4.
 
 Upload a day's [arcdps](https://www.deltaconnected.com/arcdps/) logs to
 [dps.report](https://dps.report/).
