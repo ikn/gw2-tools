@@ -1,4 +1,6 @@
 6:
+ * gw2-dpsreport:
+    * improve upload error handling
 
 5:
  * gw2-arcdps-install:

@@ -393,13 +393,14 @@ compress_log () {
 #
 # write line: RESULT/BOSS_NAME/URL
 # RESULT: adjective describing whether the encounter attempt succeeded
-# This also written also on error, in which case RESULT is unknown and URL is
+# This is also written on error, in which case RESULT is unknown and URL is
 # the error message.
 #
 # Writes to file descriptor 3 with standard error output from `curl`, with
 # carriage returns replaced with newlines to allow for line buffering of
 # progress updates
 upload_log () {
+    local newline=$'\n'
     local orig_file="$1"
     local tmp_file1="$(decompress_log "$orig_file")"
     local tmp_file2="$(compress_log "$tmp_file1")"
@@ -418,14 +419,15 @@ upload_log () {
     [ "$tmp_file1" != "$orig_file" ] && rm -f "$tmp_file1"
     [ "$tmp_file2" != "$orig_file" ] && rm -f "$tmp_file2"
     [ "$err_code" -ne 0 ] && {
-        echo unknown "$res"
+        echo "unknown//${res//$newline/|}"
         return "$ERR_OTHER"
     }
 
     local err
     err="$(jshon -Q -e error <<<"$res")"
     if [ "$?" != 0 ] || [ "$err" != null ]; then
-        echo unknown "${err:-$res}"
+        err="${err//$newline/|}"
+        echo "unknown//${err:-${res//$newline/|}}"
         return "$ERR_OTHER"
     fi
 
@@ -445,7 +447,7 @@ upload_log () {
 
     local link
     link="$(jshon -Q -e permalink -u <<<"$res")" || {
-        echo unknown "unexpected HTTP response: $res"
+        echo "unknown//unexpected HTTP response: ${res//$newline/|}"
         return "$ERR_OTHER"
     }
 
