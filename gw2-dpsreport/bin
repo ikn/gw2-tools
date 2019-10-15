@@ -402,6 +402,7 @@ compress_log () {
 upload_log () {
     local newline=$'\n'
     local orig_file="$1"
+    local file_boss_name="$(parse_path_boss_name "$orig_file")"
     local tmp_file1="$(decompress_log "$orig_file")"
     local tmp_file2="$(compress_log "$tmp_file1")"
     local file="$tmp_file2"
@@ -419,7 +420,7 @@ upload_log () {
     [ "$tmp_file1" != "$orig_file" ] && rm -f "$tmp_file1"
     [ "$tmp_file2" != "$orig_file" ] && rm -f "$tmp_file2"
     [ "$err_code" -ne 0 ] && {
-        echo "unknown//${res//$newline/|}"
+        echo "unknown/$file_boss_name/${res//$newline/|}"
         return "$ERR_OTHER"
     }
 
@@ -427,7 +428,7 @@ upload_log () {
     err="$(jshon -Q -e error <<<"$res")"
     if [ "$?" != 0 ] || [ "$err" != null ]; then
         err="${err//$newline/|}"
-        echo "unknown//${err:-${res//$newline/|}}"
+        echo "unknown/$file_boss_name/${err:-${res//$newline/|}}"
         return "$ERR_OTHER"
     fi
 
@@ -443,11 +444,11 @@ upload_log () {
 
     local boss_name
     boss_name="$(jshon -Q -e encounter -e boss -u <<<"$res" | sed 's:/: :')"
-    [ -z "$boss_name" ] && boss_name="$(parse_path_boss_name "$orig_file")"
+    [ -z "$boss_name" ] && boss_name="$file_boss_name"
 
     local link
     link="$(jshon -Q -e permalink -u <<<"$res")" || {
-        echo "unknown//unexpected HTTP response: ${res//$newline/|}"
+        echo "unknown/$boss_name/unexpected HTTP response: ${res//$newline/|}"
         return "$ERR_OTHER"
     }
 
