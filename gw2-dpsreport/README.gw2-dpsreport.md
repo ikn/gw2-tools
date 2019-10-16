@@ -32,4 +32,3 @@ implement any of these.
 - better logging with verbosity option
 - environment variable to change the day start/end time
 - environment variable to change the temp dir used for compression
-- environment variable to adjust non-custom small-file thresholds

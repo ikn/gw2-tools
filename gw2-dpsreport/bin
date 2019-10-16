@@ -15,15 +15,11 @@ DAY_START_NUM=050000
 DAY_START_TIME=05:00:00
 # if DAY has this value, the program should upload only the most recent log
 DAY_VALUE_LATEST_ONLY=latest
-# min bytes for standard-format file to be included (2MB/300kB)
-SIZE_THRESHOLD_RAW=2000000
-SIZE_THRESHOLD_ZIP=300000
 TEMP_DIR="$(mktemp -d)"
 
 env_logs_path=
 env_url="https://dps.report"
 env_upload_parallel_limit=5
-env_size_threshold_custom=0
 env_clipboard=primary
 env_browser=
 
@@ -73,8 +69,6 @@ print_help() {
     echo "- Uploads the last log file for each encounter in the specified day, regardless"
     echo "  of whether or not there was a successful attempt."
     echo "- A 'day' starts and ends at 5am, in your local timezone."
-    echo "- 'Small' log files are excluded, for some hard-coded definition (also see"
-    echo "  \`GW2_DPSREPORT_SIZE_THRESHOLD_CUSTOM')."
     echo "- Logs may be uncompressed, or compressed using any format supported by p7zip"
     echo "  (if it's installed).  File extension is used to determine whether to"
     echo "  decompress/compress."
@@ -99,9 +93,6 @@ print_help() {
     echo "      the base URL to upload logs to"
     echo "  GW2_DPSREPORT_UPLOAD_PARALLEL_LIMIT (default: 5)"
     echo "      maximum allowed parallel uploads (0 means no maximum)"
-    echo "  GW2_DPSREPORT_SIZE_THRESHOLD_CUSTOM (default: 0)"
-    echo "      logs compressed in a format other than Zip are excluded if they have a"
-    echo "      size smaller than this many bytes"
     echo "  GW2_DPSREPORT_CLIPBOARD (default: primary)"
     echo "      when specifying \`--clipboard', use this X selection (see xclip's"
     echo "      \`-selection' option)"
@@ -136,12 +127,6 @@ read_env () {
     [[ "$env_upload_parallel_limit" =~ ^[0-9]+$ ]] || {
         usage_err "GW2_DPSREPORT_UPLOAD_PARALLEL_LIMIT: not a number:" \
             "$env_upload_parallel_limit"
-    }
-
-    env_size_threshold_custom="${GW2_DPSREPORT_SIZE_THRESHOLD_CUSTOM:-$env_size_threshold_custom}"
-    [[ "$env_size_threshold_custom" =~ ^[0-9]+$ ]] || {
-        usage_err "GW2_DPSREPORT_SIZE_THRESHOLD_CUSTOM: not a number:" \
-            "$env_size_threshold_custom"
     }
 
     env_clipboard="${GW2_DPSREPORT_CLIPBOARD:-$env_clipboard}"
@@ -265,30 +250,6 @@ filter_logs_time () {
         [ "$file_num" -ge "$start_num" ] &&
             [ "$file_num" -lt "$end_num" ] &&
             echo "$f"
-    done
-}
-
-
-# filter log files to those above the small-file threshold
-# read lines: FILE_PATH
-# write lines: FILE_PATH
-filter_logs_size () {
-    local f
-    while read -r f; do
-        local size="$(stat --format=%s "$f")"
-        local ext="${f##*.}"
-        local limit
-        if [ "$ext" = evtc ]; then
-            limit="$SIZE_THRESHOLD_RAW"
-        elif [ "$ext" = zip ]; then
-            limit="$SIZE_THRESHOLD_ZIP"
-        else
-            limit="$env_size_threshold_custom"
-        fi
-
-        if [ "$size" -ge "$limit" ]; then
-            echo "$f"
-        fi
     done
 }
 
@@ -612,7 +573,6 @@ dpsreport () {
                 tail -n1
         else
             filter_logs_time |
-                filter_logs_size |
                 filter_logs_grouped |
                 sort_logs_date
         fi |
