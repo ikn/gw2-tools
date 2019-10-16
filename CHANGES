@@ -1,4 +1,6 @@
 6:
+ * gw2-arcdps-install:
+    * remove build templates functionality (removed from arcdps)
  * gw2-dpsreport:
     * improve upload error handling
 
