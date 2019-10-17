@@ -20,6 +20,7 @@ TEMP_DIR="$(mktemp -d)"
 env_logs_path=
 env_url="https://dps.report"
 env_upload_parallel_limit=5
+env_upload_max_attempts=5
 env_clipboard=primary
 env_browser=
 
@@ -93,6 +94,8 @@ print_help() {
     echo "      the base URL to upload logs to"
     echo "  GW2_DPSREPORT_UPLOAD_PARALLEL_LIMIT (default: 5)"
     echo "      maximum allowed parallel uploads (0 means no maximum)"
+    echo "  GW2_DPSREPORT_UPLOAD_MAX_ATTEMPTS (default: 5)"
+    echo "      retry if an upload fails, up to this many total attempts"
     echo "  GW2_DPSREPORT_CLIPBOARD (default: primary)"
     echo "      when specifying \`--clipboard', use this X selection (see xclip's"
     echo "      \`-selection' option)"
@@ -127,6 +130,12 @@ read_env () {
     [[ "$env_upload_parallel_limit" =~ ^[0-9]+$ ]] || {
         usage_err "GW2_DPSREPORT_UPLOAD_PARALLEL_LIMIT: not a number:" \
             "$env_upload_parallel_limit"
+    }
+
+    env_upload_max_attempts="${GW2_DPSREPORT_UPLOAD_MAX_ATTEMPTS:-$env_upload_max_attempts}"
+    [[ "$env_upload_max_attempts" =~ ^[0-9]+$ ]] || {
+        usage_err "GW2_DPSREPORT_UPLOAD_MAX_ATTEMPTS: not a number:" \
+            "$env_upload_max_attempts"
     }
 
     env_clipboard="${GW2_DPSREPORT_CLIPBOARD:-$env_clipboard}"
@@ -417,6 +426,25 @@ upload_log () {
 }
 
 
+# like `upload_log`, with retries
+upload_log_retry () {
+    local attempts=0
+    local res
+    local err_code
+    while true; do
+        attempts="$((attempts + 1))"
+        res="$(upload_log "$@")"
+        err_code="$?"
+        if [ "$err_code" -eq 0 ] ||
+           [ "$attempts" -ge "$env_upload_max_attempts" ]
+        then
+            echo "$res"
+            return "$err_code"
+        fi
+    done
+}
+
+
 # combine progress updates from multiple `curl` invocations, given the total
 # number of invocations
 #
@@ -473,7 +501,7 @@ upload_logs () {
         # name can contain spaces
         env_parallel --line-buffer --jobs "$env_upload_parallel_limit" -- \
             'echo -n {#}/{= $_ =~ s/ .+// =}/;' \
-            'upload_log {= $_ =~ s/^.+? // =}' \
+            'upload_log_retry {= $_ =~ s/^.+? // =}' \
             '    3> >(stdbuf -oL sed "s/^/{#} /" >&3)' \
             3> >(combine_upload_progress "$num_logs" >&2) |
             sort -n |
