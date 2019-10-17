@@ -1,7 +1,7 @@
 #! /usr/bin/env bash
 
 PROGRAM="gw2-arcdps-install"
-VERSION="1.1"
+VERSION="1.2"
 SHORT_OPTIONS="hrf"
 LONG_OPTIONS="version,help,uninstall,force"
 ERR_OTHER=1
