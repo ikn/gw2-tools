@@ -122,10 +122,8 @@ install_arcdps () {
 
     curl --silent --show-error "$BASE_URL/$DLL_NAME.md5sum" \
         > "$DLL_NAME.md5sum" || return 1
-    # md5sum file expects file to be in directory `x64`
-    mkdir x64 || return 1
     if [ "$opt_force" = n ] && [ -f "$dir/$DLL_NAME" ]; then
-        cp "$dir/$DLL_NAME" "x64/$DLL_NAME"
+        cp "$dir/$DLL_NAME" "$DLL_NAME"
         md5sum --status --check "$DLL_NAME.md5sum" && main_uptodate=y
     fi
 
@@ -133,9 +131,9 @@ install_arcdps () {
         echo >&2 "info: arcdps checksum didn't change; skipping update"
     else
         curl --silent --show-error "$BASE_URL/$DLL_NAME" \
-            > "x64/$DLL_NAME" || return 1
+            > "$DLL_NAME" || return 1
         md5sum --quiet --check "$DLL_NAME.md5sum" || return 1
-        install -m644 "x64/$DLL_NAME" "$dir" || return 1
+        install -m644 "$DLL_NAME" "$dir" || return 1
     fi
 
     rm -rf "$tmp"
