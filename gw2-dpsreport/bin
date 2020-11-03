@@ -5,7 +5,7 @@ env_parallel --session
 shopt -s nullglob
 
 PROGRAM="gw2-dpsreport"
-VERSION="1.5"
+VERSION="1.6"
 SHORT_OPTIONS="hcf:b"
 LONG_OPTIONS="version,help,clipboard,on-failure:,open-in-browser"
 ERR_OTHER=1
@@ -415,6 +415,10 @@ upload_log () {
     local boss_name
     boss_name="$(jshon -Q -e encounter -e boss -u <<<"$res" | sed 's:/: :')"
     [ -z "$boss_name" ] && boss_name="$file_boss_name"
+
+    local is_cm
+    is_cm="$(jshon -Q -e encounter -e isCm -u <<<"$res")"
+    [ "$is_cm" = true ] && boss_name="$boss_name CM"
 
     local link
     link="$(jshon -Q -e permalink -u <<<"$res")" || {
