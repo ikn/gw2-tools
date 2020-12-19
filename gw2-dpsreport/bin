@@ -5,7 +5,7 @@ env_parallel --session
 shopt -s nullglob
 
 PROGRAM="gw2-dpsreport"
-VERSION="1.6"
+VERSION="1.7"
 SHORT_OPTIONS="hcf:b"
 LONG_OPTIONS="version,help,clipboard,on-failure:,open-in-browser"
 ERR_OTHER=1
@@ -23,6 +23,7 @@ env_upload_parallel_limit=5
 env_upload_max_attempts=5
 env_clipboard=primary
 env_browser=
+env_token=
 
 arg_day=
 
@@ -103,6 +104,8 @@ print_help() {
     echo "      when specifying \`--open-in-browser', pass URLs as separate arguments to"
     echo "      this command; may include extra arguments, and arguments may not contain"
     echo "      whitespace"
+    echo "  GW2_DPSREPORT_USER_TOKEN"
+    echo "      associate uploaded logs with a specific user"
     echo
     echo "Failure actions (default: last):"
     echo "  last          upload the most recent log for the encounter"
@@ -141,6 +144,8 @@ read_env () {
     env_clipboard="${GW2_DPSREPORT_CLIPBOARD:-$env_clipboard}"
 
     env_browser="$GW2_DPSREPORT_WEB_BROWSER"
+
+    env_token="$GW2_DPSREPORT_USER_TOKEN"
 
     type -p 7z > /dev/null || {
         echo >&2 -n "warning: 7z not found; "
@@ -385,6 +390,7 @@ upload_log () {
     local res
     res="$(curl 2> >(stdbuf -oL tr '\r' '\n' >&3) "$url" \
         -F file="@$file;filename=$upload_name" \
+        -F userToken="$env_token" \
         -F json=1)"
     local err_code="$?"
     [ "$tmp_file1" != "$orig_file" ] && rm -f "$tmp_file1"
