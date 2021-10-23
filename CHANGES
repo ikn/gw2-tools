@@ -1,6 +1,8 @@
 10:
  * gw2-dpsreport:
     * fix for .zevtc files (actually the same as .evtc.zip)
+    * fix an issue where it would fail for environment configuration issues even
+      when specifying --help or --version
 
 9:
  * gw2-dpsreport:

@@ -640,8 +640,8 @@ elif [ "$getopt_code" -ne 0 ]; then
     exit 1
 fi
 eval set -- "$options_script"
-read_env
 read_options "$@"
+read_env # after options so it can exit early with --help/--version
 
 dpsreport
 exit "$?"
