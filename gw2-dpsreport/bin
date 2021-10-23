@@ -5,7 +5,7 @@ env_parallel --session
 shopt -s nullglob
 
 PROGRAM="gw2-dpsreport"
-VERSION="1.7-next"
+VERSION="1.8"
 SHORT_OPTIONS="hcf:b"
 LONG_OPTIONS="version,help,clipboard,on-failure:,open-in-browser"
 ERR_OTHER=1
