@@ -1,4 +1,6 @@
 10:
+ * gw2-dpsreport:
+    * fix for .zevtc files (actually the same as .evtc.zip)
 
 9:
  * gw2-dpsreport:

@@ -5,7 +5,7 @@ env_parallel --session
 shopt -s nullglob
 
 PROGRAM="gw2-dpsreport"
-VERSION="1.7"
+VERSION="1.7-next"
 SHORT_OPTIONS="hcf:b"
 LONG_OPTIONS="version,help,clipboard,on-failure:,open-in-browser"
 ERR_OTHER=1
@@ -63,7 +63,7 @@ print_help() {
     echo
     echo "Usage: $PROGRAM [OPTION]... DAY"
     echo
-    echo "DAY is the day to upload logs for, as accepted by \`date', (eg. 'today', 'last"
+    echo "DAY is the day to upload logs for, as accepted by \`date', (e.g. 'today', 'last"
     echo "wednesday', 'friday 3 weeks ago', '2001-02-03').  You can also use the special"
     echo "value 'latest', which means only upload the single most recent log, from any"
     echo "day."
@@ -197,6 +197,8 @@ read_options () {
                 ;;
         esac
     done
+
+    read_env # after args so we can exit early with --help/--version
 
     if [ "$opt_clipboard" = y ] && ! type -p xclip > /dev/null; then
         err "$ERR_OTHER" \
@@ -603,7 +605,7 @@ copy_results () {
 
 dpsreport () {
     trap cleanup TERM INT EXIT
-    for f in "$env_logs_path"/*/*.evtc{,.*}; do echo "$f"; done |
+    for f in "$env_logs_path"/*/*.{zevtc,evtc{,.*}}; do echo "$f"; done |
         if [ "$arg_day" = "$DAY_VALUE_LATEST_ONLY" ]; then
             # dummy attempt count value - ignored in `display_results`
             while read -r f; do echo 0 "$f"; done |
