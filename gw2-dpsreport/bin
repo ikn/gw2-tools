@@ -5,9 +5,9 @@ env_parallel --session
 shopt -s nullglob
 
 PROGRAM="gw2-dpsreport"
-VERSION="1.8"
-SHORT_OPTIONS="hcf:b"
-LONG_OPTIONS="version,help,clipboard,on-failure:,open-in-browser"
+VERSION="1.8-next"
+SHORT_OPTIONS="hcp:f:b"
+LONG_OPTIONS="version,help,clipboard,display-format:,on-failure:,open-in-browser"
 ERR_OTHER=1
 ERR_USAGE=2
 # where the day boundary falls, as %H%M%S/%H:%M:%S
@@ -28,6 +28,7 @@ env_token=
 arg_day=
 
 opt_clipboard=n
+opt_display_format=brief
 opt_on_failure=last
 opt_open_in_browser=n
 
@@ -78,6 +79,8 @@ print_help() {
     echo "Options:"
     echo "  -c, --clipboard"
     echo "                copy the result to clipboard"
+    echo "  -p, --display-format=FORMAT"
+    echo "                how to display the uploaded logs (see 'Display formats' below)"
     echo "  -f, --on-failure=ACTION"
     echo "                what to do if the last log for an encounter isn't a"
     echo "                successful attempt (see 'Failure actions' below)"
@@ -106,6 +109,11 @@ print_help() {
     echo "      whitespace"
     echo "  GW2_DPSREPORT_USER_TOKEN"
     echo "      associate uploaded logs with a specific user"
+    echo
+    echo "Display formats (default: readable):"
+    echo "  brief         for each encounter, display encounter name, sucess/failure,"
+    echo "                number of attempts, and URL"
+    echo "  url-only      for each encounter, display only the URL"
     echo
     echo "Failure actions (default: last):"
     echo "  last          upload the most recent log for the encounter"
@@ -183,6 +191,10 @@ read_options () {
                 opt_clipboard=y
                 shift
                 ;;
+            '-p'|'--display-format')
+                opt_display_format="$2"
+                shift 2
+                ;;
             '-f'|'--on-failure')
                 opt_on_failure="$2"
                 shift 2
@@ -203,6 +215,12 @@ read_options () {
     if [ "$opt_clipboard" = y ] && ! type -p xclip > /dev/null; then
         err "$ERR_OTHER" \
             "\`--clipboard' option provided but xclip is not available"
+    fi
+
+    if [ "$opt_display_format" != brief ] &&
+        [ "$opt_display_format" != url-only ]
+    then
+        usage_err "\`--display-format': invalid argument: $opt_display_format"
     fi
 
     if [ "$opt_on_failure" != last ] && [ "$opt_on_failure" != skip ]; then
@@ -575,10 +593,12 @@ display_results () {
     local url
 
     while IFS=/ read -r num_attempts result boss_name url; do
-        if [ "$arg_day" = "$DAY_VALUE_LATEST_ONLY" ]; then
-            echo -n "$boss_name ($result): "
-        else
-            echo -n "$boss_name (attempts: $num_attempts, $result): "
+        if [ "$opt_display_format" = brief ]; then
+            if [ "$arg_day" = "$DAY_VALUE_LATEST_ONLY" ]; then
+                echo -n "$boss_name ($result): "
+            else
+                echo -n "$boss_name (attempts: $num_attempts, $result): "
+            fi
         fi
 
         if [ "$result" = unknown ]; then

@@ -1,4 +1,6 @@
 11:
+ * gw2-dpsreport:
+    * add `--display-format` option, with new value `url-only`
 
 10:
  * gw2-dpsreport:
