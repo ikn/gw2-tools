@@ -14,6 +14,7 @@ Upload a day's [arcdps](https://www.deltaconnected.com/arcdps/) logs to
     - optional: work with log files compressed in formats other than Zip
 - xclip: https://github.com/astrand/xclip
     - optional: `--clipboard` option
+- find
 
 # Usage
 

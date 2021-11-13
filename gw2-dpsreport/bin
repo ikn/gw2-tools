@@ -625,7 +625,8 @@ copy_results () {
 
 dpsreport () {
     trap cleanup TERM INT EXIT
-    for f in "$env_logs_path"/*/*.{zevtc,evtc{,.*}}; do echo "$f"; done |
+    find -L "$env_logs_path" -type f \
+        -name '*.zevtc' -o -name '*.evtc' -o -name '*.evtc.*' |
         if [ "$arg_day" = "$DAY_VALUE_LATEST_ONLY" ]; then
             # dummy attempt count value - ignored in `display_results`
             while read -r f; do echo 0 "$f"; done |

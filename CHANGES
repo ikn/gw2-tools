@@ -1,6 +1,9 @@
 11:
  * gw2-dpsreport:
     * add `--display-format` option, with new value `url-only`
+    * get it to work with the arcdps logging options 'use player name in save
+      path' and 'use guild in save path'
+    * now additionally depends on `find`
 
 10:
  * gw2-dpsreport:
