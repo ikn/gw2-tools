@@ -4,6 +4,8 @@
     * get it to work with the arcdps logging options 'use player name in save
       path' and 'use guild in save path'
     * now additionally depends on `find`
+ * gw2-arcdps:
+    * add `--dx11` option (DirectX 11 support)
 
 10:
  * gw2-dpsreport:

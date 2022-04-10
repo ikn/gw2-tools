@@ -3,15 +3,19 @@
 PROGRAM="gw2-arcdps-install"
 VERSION="1.2.1"
 SHORT_OPTIONS="hrf"
-LONG_OPTIONS="version,help,uninstall,force"
+LONG_OPTIONS="version,help,uninstall,dx11,force"
 ERR_OTHER=1
 ERR_USAGE=2
 BASE_URL="http://www.deltaconnected.com/arcdps/x64"
 DLL_NAME="d3d9.dll"
+DX11_DLL_NAME="d3d11.dll"
 
 env_install_path=
+dx9_path=
+dx11_path=
 
 opt_install=y
+opt_dx11=n
 opt_force=n
 
 
@@ -47,7 +51,9 @@ print_help() {
     echo "Usage: $PROGRAM [OPTION]..."
     echo
     echo "Options:"
-    echo "  -r, --uninstall   remove installed files, if present"
+    echo "  -r, --uninstall   remove installed files, if present (removes for both"
+    echo "                    DirectX versions)"
+    echo "  --dx11            install DirectX 11 version (default: DirectX 9)"
     echo "  -f, --force       update all files even if it looks like they didn't change"
     echo "  -h, --help        display this help and exit"
     echo "  --version         display version information and exit"
@@ -70,11 +76,12 @@ validate_install_path () {
     [ -d "$env_install_path" ] || {
         err "$ERR_OTHER" "not a directory: $env_install_path"
     }
-    env_install_path="$env_install_path/bin64"
-    [ -d "$env_install_path" ] || {
-        err "$ERR_OTHER" "no such directory: $env_install_path"
+    [ -d "$env_install_path/bin64" ] || {
+        err "$ERR_OTHER" "no such directory: $env_install_path/bin64"
     }
     echo >&2 "info: using install directory: $env_install_path"
+    dx9_path="$env_install_path/bin64/d3d9.dll"
+    dx11_path="$env_install_path/d3d11.dll"
 }
 
 
@@ -100,6 +107,10 @@ read_options () {
                 opt_install=n
                 shift
                 ;;
+            '--dx11')
+                opt_dx11=y
+                shift
+                ;;
             '-f'|'--force')
                 opt_force=y
                 shift
@@ -115,15 +126,20 @@ read_options () {
 
 install_arcdps () {
     local main_uptodate=n
-    local dir="$env_install_path"
+    local target_path
+    if [ "$opt_dx11" = n ]; then
+        target_path="$dx9_path"
+    else
+        target_path="$dx11_path"
+    fi
     local tmp
     tmp="$(mktemp -d)" || return 1
     cd "$tmp"
 
     curl --silent --show-error "$BASE_URL/$DLL_NAME.md5sum" \
         > "$DLL_NAME.md5sum" || return 1
-    if [ "$opt_force" = n ] && [ -f "$dir/$DLL_NAME" ]; then
-        cp "$dir/$DLL_NAME" "$DLL_NAME"
+    if [ "$opt_force" = n ] && [ -f "$target_path" ]; then
+        cp "$target_path" "$DLL_NAME"
         md5sum --status --check "$DLL_NAME.md5sum" && main_uptodate=y
     fi
 
@@ -133,7 +149,12 @@ install_arcdps () {
         curl --silent --show-error "$BASE_URL/$DLL_NAME" \
             > "$DLL_NAME" || return 1
         md5sum --quiet --check "$DLL_NAME.md5sum" || return 1
-        install -m644 "$DLL_NAME" "$dir" || return 1
+        install -m644 -T "$DLL_NAME" "$target_path" || return 1
+        if [ "$opt_dx11" = n ]; then
+            rm -f "$dx11_path"
+        else
+            rm -f "$dx9_path"
+        fi
     fi
 
     rm -rf "$tmp"
@@ -141,7 +162,7 @@ install_arcdps () {
 
 
 uninstall_arcdps () {
-    rm -f "$env_install_path/$DLL_NAME" || return 1
+    rm -f "$dx9_path" "$dx11_path" || return 1
 }
 
 
