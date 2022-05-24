@@ -1,4 +1,4 @@
-gw2-arcdps-install 1.3.
+gw2-arcdps-install 1.3-next.
 
 Install [arcdps](https://www.deltaconnected.com/arcdps/).
 

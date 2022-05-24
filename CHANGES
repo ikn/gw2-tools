@@ -1,4 +1,7 @@
 12:
+ * gw2-arcdps-install:
+    * remove DirectX 9 support (no longer supported by arcdps) (removes the
+      `--dx11` option)
 
 11:
  * gw2-dpsreport:
@@ -6,8 +9,8 @@
     * get it to work with the arcdps logging options 'use player name in save
       path' and 'use guild in save path'
     * now additionally depends on `find`
- * gw2-arcdps:
-    * add `--dx11` option (DirectX 11 support)
+ * gw2-arcdps-install:
+    * add `--dx11` option
 
 10:
  * gw2-dpsreport:
