@@ -1,12 +1,12 @@
 #! /usr/bin/env bash
 
 PROGRAM="gw2-arcdps-install"
-VERSION="1.4"
+VERSION="1.4-next"
 SHORT_OPTIONS="hrf"
 LONG_OPTIONS="version,help,uninstall,force"
 ERR_OTHER=1
 ERR_USAGE=2
-BASE_URL="http://www.deltaconnected.com/arcdps/x64"
+BASE_URL="https://www.deltaconnected.com/arcdps/x64"
 DLL_NAME="d3d11.dll"
 
 env_install_path=
